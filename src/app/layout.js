@@ -3,9 +3,13 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
 export const metadata = {
+  metadataBase: new URL("https://augnexis.tech"),
   title: "Augnexis Technologies | Connecting Intelligence. Delivering Innovation.",
   description: "Augnexis Technologies is a premium digital transformation and engineering provider. We build AI integrations, cloud architecture, cybersecurity systems, and enterprise software solutions.",
   robots: "index, follow",
+  alternates: {
+    canonical: "/"
+  }
 };
 
 export default function RootLayout({ children }) {
