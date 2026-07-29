@@ -100,6 +100,18 @@ export default function Contact() {
                   <p>Monday - Saturday: 10:00 AM - 7:00 PM<br />Sunday: Closed</p>
                 </div>
               </div>
+
+              <div style={{ borderRadius: 'var(--radius-lg)', overflow: 'hidden', height: '280px', border: '1px solid var(--color-border)', marginTop: '2.5rem', boxShadow: 'var(--shadow-sm)' }}>
+                <iframe 
+                  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3502.4266006061016!2d77.03990677528846!3d28.616973875673253!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x492e6b760f1cee6b%3A0x393b930f47210ad4!2sAugnexis%20Technologies!5e0!3m2!1sen!2sin!4v1785350117795!5m2!1sen!2sin" 
+                  width="100%" 
+                  height="100%" 
+                  style={{ border: 0 }} 
+                  allowFullScreen="" 
+                  loading="lazy" 
+                  referrerPolicy="strict-origin-when-cross-origin"
+                ></iframe>
+              </div>
             </div>
 
             {/* Interactive Form */}
