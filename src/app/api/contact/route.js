@@ -10,7 +10,7 @@ export async function POST(request) {
       return NextResponse.json({ error: "All fields are required" }, { status: 400 });
     }
 
-    const leads = readLeads();
+    const leads = await readLeads();
     const newLead = {
       id: Date.now().toString(),
       name,
@@ -22,7 +22,7 @@ export async function POST(request) {
     };
 
     leads.unshift(newLead);
-    writeLeads(leads);
+    await writeLeads(leads);
 
     return NextResponse.json({ success: true, lead: newLead });
   } catch (error) {

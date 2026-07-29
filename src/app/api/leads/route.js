@@ -8,7 +8,7 @@ export async function GET(request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const leads = readLeads();
+    const leads = await readLeads();
     return NextResponse.json(leads);
   } catch (error) {
     return NextResponse.json({ error: "Failed to read leads" }, { status: 500 });
@@ -29,9 +29,9 @@ export async function DELETE(request) {
       return NextResponse.json({ error: "Missing id" }, { status: 400 });
     }
 
-    let leads = readLeads();
+    let leads = await readLeads();
     leads = leads.filter(l => l.id !== id);
-    writeLeads(leads);
+    await writeLeads(leads);
 
     return NextResponse.json({ success: true });
   } catch (error) {

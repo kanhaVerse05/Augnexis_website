@@ -6,7 +6,7 @@ import { notFound } from "next/navigation";
 // Dynamic SEO metadata generator
 export async function generateMetadata({ params }) {
   const { id } = await params;
-  const blogs = readBlogs();
+  const blogs = await readBlogs();
   const post = blogs.find((b) => b.id === id);
 
   if (!post) {
@@ -34,7 +34,7 @@ export async function generateMetadata({ params }) {
 
 export default async function BlogDetails({ params }) {
   const { id } = await params;
-  const blogs = readBlogs();
+  const blogs = await readBlogs();
   const post = blogs.find((b) => b.id === id);
 
   if (!post) {

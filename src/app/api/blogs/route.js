@@ -3,7 +3,7 @@ import { readBlogs, writeBlogs } from "@/lib/db";
 
 export async function GET() {
   try {
-    const blogs = readBlogs();
+    const blogs = await readBlogs();
     return NextResponse.json(blogs);
   } catch (error) {
     return NextResponse.json({ error: "Failed to read blogs" }, { status: 500 });
@@ -24,7 +24,7 @@ export async function POST(request) {
       return NextResponse.json({ error: "Missing fields" }, { status: 400 });
     }
 
-    const blogs = readBlogs();
+    const blogs = await readBlogs();
 
     const newBlog = {
       id: Date.now().toString(),
@@ -39,7 +39,7 @@ export async function POST(request) {
     };
 
     blogs.unshift(newBlog);
-    writeBlogs(blogs);
+    await writeBlogs(blogs);
 
     return NextResponse.json({ success: true, blog: newBlog });
   } catch (error) {
@@ -61,9 +61,9 @@ export async function DELETE(request) {
       return NextResponse.json({ error: "Missing id" }, { status: 400 });
     }
 
-    let blogs = readBlogs();
+    let blogs = await readBlogs();
     blogs = blogs.filter(b => b.id !== id);
-    writeBlogs(blogs);
+    await writeBlogs(blogs);
 
     return NextResponse.json({ success: true });
   } catch (error) {
