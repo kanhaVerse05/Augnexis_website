@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Mail, Phone, MapPin, Linkedin, Twitter, Github, ArrowRight } from "lucide-react";
+import { Mail, Phone, MapPin, Facebook, Instagram, ArrowRight } from "lucide-react";
 
 export default function Footer() {
   const currentYear = new Date().getFullYear();
@@ -23,9 +23,8 @@ export default function Footer() {
               Augnexis Technologies is a forward-thinking digital solution provider. We connect intelligence and deliver innovation across enterprise platforms.
             </p>
             <div className="footer-socials">
-              <a href="#" className="social-link" aria-label="LinkedIn"><Linkedin size={18} /></a>
-              <a href="#" className="social-link" aria-label="Twitter"><Twitter size={18} /></a>
-              <a href="#" className="social-link" aria-label="GitHub"><Github size={18} /></a>
+              <a href="https://www.facebook.com/augnexis/" target="_blank" rel="noopener noreferrer" className="social-link" aria-label="Facebook"><Facebook size={18} /></a>
+              <a href="https://www.instagram.com/augnexis/" target="_blank" rel="noopener noreferrer" className="social-link" aria-label="Instagram"><Instagram size={18} /></a>
             </div>
           </div>
 
