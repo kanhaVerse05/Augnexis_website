@@ -88,15 +88,15 @@ export default function Technologies() {
           <div className="grid-2" style={{ alignItems: 'center', gap: '4rem' }}>
             <div>
               <span className="sub-title">OUR TOOLKIT</span>
-              <h1 className="page-header-title" style={{ textAlign: 'left', margin: '0 0 1rem 0' }}>Technologies We Harness</h1>
+              <h1 className="page-header-title" style={{ textAlign: 'left', margin: '0 0 1rem 0' }}>Technologies We Master</h1>
               <p className="page-header-desc" style={{ textAlign: 'left', margin: '0' }}>
-                We utilize robust programming languages, frameworks, and cloud infrastructure tools to assemble scalable, modern web assets.
+                We leverage industry-leading technologies to build fast, secure, and scalable web, mobile, cloud, and AI-powered solutions tailored to your business.
               </p>
             </div>
             <div style={{ borderRadius: 'var(--radius-lg)', overflow: 'hidden', height: '220px', border: '1px solid var(--color-border)', boxShadow: 'var(--shadow-md)' }}>
               <img 
-                src="https://images.unsplash.com/photo-1618401471353-b98aedd07871?auto=format&fit=crop&w=800&q=80" 
-                alt="Software Development Code" 
+                src="/software-tech-banner.jpg" 
+                alt="Technologies We Master" 
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
               />
             </div>
