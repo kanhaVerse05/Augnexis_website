@@ -1686,3 +1686,13 @@ a {
     line-height: 1.5 !important;
   }
 }
+
+/* Service Details Card Hover Animation */
+.service-card {
+  transition: transform 0.3s ease, box-shadow 0.3s ease !important;
+}
+
+.service-card:hover {
+  transform: translateY(-5px) !important;
+  box-shadow: 0 12px 30px rgba(0, 102, 254, 0.12) !important;
+}

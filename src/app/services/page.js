@@ -4,6 +4,7 @@ import { Brain, Code2, Globe, Smartphone, Cloud, LineChart, ChevronRight, ArrowR
 export default function Services() {
   const serviceList = [
     {
+      id: "ai",
       icon: <Brain size={20} />,
       title: "AI Solutions",
       image: "/service-ai.jpg",
@@ -16,6 +17,7 @@ export default function Services() {
       desc: "We design and deploy custom artificial intelligence systems to automate repetitive operations, optimize day-to-day workflows, and supercharge decision-making processes. From machine learning pipelines to intelligent support assistants, our AI integrations are built to make your business smarter and faster."
     },
     {
+      id: "software",
       icon: <Code2 size={20} />,
       title: "Custom Software",
       image: "/service-software.jpg",
@@ -28,6 +30,7 @@ export default function Services() {
       desc: "We build bespoke enterprise software tailored exactly to your unique organizational processes. Instead of forcing your business to adapt to rigid off-the-shelf software packages, we design and code customizable software platforms that mirror your actual workflow criteria and scale seamlessly."
     },
     {
+      id: "web",
       icon: <Globe size={20} />,
       title: "Website Development",
       image: "/service-web.jpg",
@@ -40,6 +43,7 @@ export default function Services() {
       desc: "We design and develop fast, responsive, and SEO-friendly websites engineered to establish a strong brand identity and drive business growth. Our web products combine modern design aesthetics with clean engineering architectures to convert visitors into loyal clients."
     },
     {
+      id: "mobile",
       icon: <Smartphone size={20} />,
       title: "Mobile Apps",
       image: "/service-mobile.jpg",
@@ -52,6 +56,7 @@ export default function Services() {
       desc: "We build high-performance mobile apps for iOS and Android platforms utilizing cross-platform and native coding technologies. Our mobile team prioritizes user interface ease-of-use, rapid rendering speeds, and smooth device feature integrations."
     },
     {
+      id: "cloud",
       icon: <Cloud size={20} />,
       title: "Cloud Solutions",
       image: "/service-cloud.jpg",
@@ -64,6 +69,7 @@ export default function Services() {
       desc: "We build and manage highly secure, scalable, and resilient cloud architectures that safeguard your application databases. Our cloud setups are engineered to adjust automatically to traffic surges, ensuring zero server downtime during peak request hours."
     },
     {
+      id: "marketing",
       icon: <LineChart size={20} />,
       title: "Digital Marketing",
       image: "/service-marketing.jpg",
@@ -97,7 +103,21 @@ export default function Services() {
         <div className="container">
           <div className="grid-3">
             {serviceList.map((service, index) => (
-              <div key={index} className="glass-card" style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '0', overflow: 'hidden' }}>
+              <Link 
+                href={`/services/${service.id}`}
+                key={index} 
+                className="glass-card service-card" 
+                style={{ 
+                  display: 'flex', 
+                  flexDirection: 'column', 
+                  height: '100%', 
+                  padding: '0', 
+                  overflow: 'hidden',
+                  textDecoration: 'none',
+                  color: 'inherit',
+                  cursor: 'pointer'
+                }}
+              >
                 <div style={{ height: '180px', width: '100%', overflow: 'hidden', position: 'relative' }}>
                   <img 
                     src={service.image} 
@@ -144,7 +164,7 @@ export default function Services() {
                     </ul>
                   </div>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         </div>

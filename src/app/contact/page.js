@@ -100,14 +100,6 @@ export default function Contact() {
                   <p>Monday - Saturday: 10:00 AM - 7:00 PM<br />Sunday: Closed</p>
                 </div>
               </div>
-
-              <div style={{ borderRadius: 'var(--radius-lg)', overflow: 'hidden', height: '240px', border: '1px solid var(--color-border)', marginTop: '2rem', boxShadow: 'var(--shadow-sm)' }}>
-                <img 
-                  src="https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=800&q=80" 
-                  alt="Augnexis Technologies Office" 
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
-              </div>
             </div>
 
             {/* Interactive Form */}
