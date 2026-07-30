@@ -47,6 +47,8 @@ const ALLOWED_CRAWLERS = [
   "yandexbot",
   "facebot",
   "facebookexternalhit",
+  "facebook",
+  "meta-",
   "twitterbot",
   "linkedinbot",
   "slackbot",
