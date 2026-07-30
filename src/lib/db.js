@@ -68,8 +68,9 @@ let dbInitialized = false;
 async function initPG() {
   if (dbInitialized || !pool) return;
 
-  const client = await pool.connect();
+  let client = null;
   try {
+    client = await pool.connect();
     // Create leads table
     await client.query(`
       CREATE TABLE IF NOT EXISTS leads (
@@ -147,36 +148,64 @@ async function initPG() {
     dbInitialized = true;
   } catch (err) {
     console.error("Postgres init error:", err);
+    throw err;
   } finally {
-    client.release();
+    if (client) client.release();
   }
 }
 
+// Local JSON Helpers
+function readLeadsLocal() {
+  initLocalDB();
+  const data = fs.readFileSync(LEADS_FILE, "utf-8");
+  return JSON.parse(data || "[]");
+}
+
+function writeLeadsLocal(leads) {
+  initLocalDB();
+  fs.writeFileSync(LEADS_FILE, JSON.stringify(leads, null, 2), "utf-8");
+}
+
+function readBlogsLocal() {
+  initLocalDB();
+  const data = fs.readFileSync(BLOGS_FILE, "utf-8");
+  return JSON.parse(data || "[]");
+}
+
+function writeBlogsLocal(blogs) {
+  initLocalDB();
+  fs.writeFileSync(BLOGS_FILE, JSON.stringify(blogs, null, 2), "utf-8");
+}
+
+// Exported Functions
 export async function readLeads() {
   if (pool) {
-    await initPG();
-    const result = await pool.query("SELECT * FROM leads ORDER BY id DESC");
-    return result.rows.map(row => ({
-      id: row.id,
-      name: row.name,
-      phone: row.phone,
-      email: row.email,
-      subject: row.subject,
-      message: row.message,
-      createdAt: row.created_at
-    }));
-  } else {
-    initLocalDB();
-    const data = fs.readFileSync(LEADS_FILE, "utf-8");
-    return JSON.parse(data || "[]");
+    try {
+      await initPG();
+      const result = await pool.query("SELECT * FROM leads ORDER BY id DESC");
+      return result.rows.map(row => ({
+        id: row.id,
+        name: row.name,
+        phone: row.phone,
+        email: row.email,
+        subject: row.subject,
+        message: row.message,
+        createdAt: row.created_at
+      }));
+    } catch (err) {
+      console.error("Postgres readLeads failed. Falling back to local JSON.", err);
+      return readLeadsLocal();
+    }
   }
+  return readLeadsLocal();
 }
 
 export async function writeLeads(leads) {
   if (pool) {
-    await initPG();
-    const client = await pool.connect();
+    let client = null;
     try {
+      await initPG();
+      client = await pool.connect();
       await client.query("BEGIN");
       await client.query("DELETE FROM leads");
       for (const lead of leads) {
@@ -186,45 +215,55 @@ export async function writeLeads(leads) {
         );
       }
       await client.query("COMMIT");
+      return;
     } catch (err) {
-      await client.query("ROLLBACK");
-      console.error("Failed to write leads to Postgres:", err);
+      if (client) {
+        try {
+          await client.query("ROLLBACK");
+        } catch (rollbackErr) {
+          console.error("Rollback failed:", rollbackErr);
+        }
+      }
+      console.error("Postgres writeLeads failed. Falling back to local JSON.", err);
+      writeLeadsLocal(leads);
     } finally {
-      client.release();
+      if (client) client.release();
     }
   } else {
-    initLocalDB();
-    fs.writeFileSync(LEADS_FILE, JSON.stringify(leads, null, 2), "utf-8");
+    writeLeadsLocal(leads);
   }
 }
 
 export async function readBlogs() {
   if (pool) {
-    await initPG();
-    const result = await pool.query("SELECT * FROM blogs ORDER BY id DESC");
-    return result.rows.map(row => ({
-      id: row.id,
-      title: row.title,
-      category: row.category,
-      date: row.date,
-      author: row.author,
-      readTime: row.read_time,
-      excerpt: row.excerpt,
-      image: row.image,
-      gradient: row.gradient
-    }));
-  } else {
-    initLocalDB();
-    const data = fs.readFileSync(BLOGS_FILE, "utf-8");
-    return JSON.parse(data || "[]");
+    try {
+      await initPG();
+      const result = await pool.query("SELECT * FROM blogs ORDER BY id DESC");
+      return result.rows.map(row => ({
+        id: row.id,
+        title: row.title,
+        category: row.category,
+        date: row.date,
+        author: row.author,
+        readTime: row.read_time,
+        excerpt: row.excerpt,
+        image: row.image,
+        gradient: row.gradient
+      }));
+    } catch (err) {
+      console.error("Postgres readBlogs failed. Falling back to local JSON.", err);
+      return readBlogsLocal();
+    }
   }
+  return readBlogsLocal();
 }
 
 export async function writeBlogs(blogs) {
   if (pool) {
-    await initPG();
-    const client = await pool.connect();
+    let client = null;
     try {
+      await initPG();
+      client = await pool.connect();
       await client.query("BEGIN");
       await client.query("DELETE FROM blogs");
       for (const blog of blogs) {
@@ -234,14 +273,21 @@ export async function writeBlogs(blogs) {
         );
       }
       await client.query("COMMIT");
+      return;
     } catch (err) {
-      await client.query("ROLLBACK");
-      console.error("Failed to write blogs to Postgres:", err);
+      if (client) {
+        try {
+          await client.query("ROLLBACK");
+        } catch (rollbackErr) {
+          console.error("Rollback failed:", rollbackErr);
+        }
+      }
+      console.error("Postgres writeBlogs failed. Falling back to local JSON.", err);
+      writeBlogsLocal(blogs);
     } finally {
-      client.release();
+      if (client) client.release();
     }
   } else {
-    initLocalDB();
-    fs.writeFileSync(BLOGS_FILE, JSON.stringify(blogs, null, 2), "utf-8");
+    writeBlogsLocal(blogs);
   }
 }
