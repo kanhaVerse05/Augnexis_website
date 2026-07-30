@@ -40,22 +40,24 @@ const BLOCKED_BOT_PATTERNS = [
 
 // List of allowed search engines, social crawlers, and reputable AI bots
 const ALLOWED_CRAWLERS = [
-  "googlebot",
-  "bingbot",
-  "applebot",
-  "duckduckbot",
-  "yandexbot",
-  "facebot",
-  "facebookexternalhit",
-  "facebook",
-  "meta-",
+  "google",       // Whitelists googlebot, google-inspectiontool, googleother, etc.
+  "bing",         // Whitelists bingbot, bingpreview
+  "apple",        // Whitelists applebot
+  "duckduck",     // Whitelists duckduckbot
+  "yandex",       // Whitelists yandexbot
+  "baidu",        // Whitelists baiduspider
+  "perplex",      // Whitelists perplexibot (Perplexity AI)
+  "chatgpt",      // Whitelists chatgpt-user
+  "gptbot",       // Whitelists gptbot
+  "claude",       // Whitelists claudebot
+  "anthropic",    // Whitelists anthropic-ai
+  "cohere",       // Whitelists cohere-ai
+  "youbot",       // Whitelists YouBot
+  "facebook",     // Whitelists facebookexternalhit, facebookplatform
+  "meta-",        // Whitelists meta-externalagent, meta-webindexer
   "twitterbot",
   "linkedinbot",
-  "slackbot",
-  "chatgpt",
-  "gptbot",
-  "claudebot",
-  "anthropic-ai"
+  "slackbot"
 ];
 
 export function proxy(request) {

@@ -76,9 +76,7 @@ export default function Footer() {
             © {currentYear} Augnexis Technologies. All rights reserved.
           </p>
           <div className="footer-policies">
-            <a href="#" className="policy-link">Privacy Policy</a>
-            <a href="#" className="policy-link">Terms of Service</a>
-            <a href="#" className="policy-link">Sitemap</a>
+            <Link href="/sitemap.xml" className="policy-link">Map</Link>
           </div>
         </div>
       </div>
