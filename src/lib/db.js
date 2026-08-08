@@ -10,9 +10,12 @@ const PAYMENTS_FILE = path.join(DATA_DIR, "payments.json");
 // Connection Pool (only if DATABASE_URL is set)
 let pool = null;
 if (process.env.DATABASE_URL) {
+  const connectionString = process.env.DATABASE_URL;
+  // Disable SSL by default unless explicitly requested via sslmode=require
+  const requireSSL = connectionString.includes("sslmode=require") || connectionString.includes("ssl=true");
   pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: process.env.DATABASE_URL.includes("localhost") ? false : { rejectUnauthorized: false }
+    connectionString,
+    ssl: requireSSL ? { rejectUnauthorized: false } : false
   });
 }
 
