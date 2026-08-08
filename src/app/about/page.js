@@ -26,12 +26,19 @@ export default function About() {
 
   const team = [
     { 
-      name: "Akash Choudhary", 
-      role: "Founder & Director"
+      name: "Kahna", 
+      role: "Full stack Developer",
+      image: "/team-kahna.jpg"
     },
     { 
-      name: "Abhimanyu Mishra", 
-      role: "Co-Founder & Director"
+      name: "Shruti", 
+      role: "Software Developer",
+      image: "/team-shruti.jpg"
+    },
+    { 
+      name: "Abhi", 
+      role: "Co-Founder & Director",
+      image: "/team-abhi.jpg"
     }
   ];
 
@@ -142,7 +149,7 @@ export default function About() {
             </p>
           </div>
 
-          <div style={{ display: "flex", justifyContent: "center", gap: "3rem", flexWrap: "wrap", marginTop: "2rem" }}>
+          <div style={{ display: "flex", justifyContent: "center", gap: "2rem", flexWrap: "wrap", marginTop: "2rem" }}>
             {team.map((member, index) => (
               <div key={index} className="stat-card" style={{ 
                 padding: '2.5rem 2rem', 
@@ -150,21 +157,25 @@ export default function About() {
                 flexDirection: 'column', 
                 alignItems: 'center', 
                 textAlign: 'center',
-                minWidth: '280px'
+                minWidth: '260px',
+                flex: '1 1 260px',
+                maxWidth: '300px'
               }}>
                 <div style={{
-                  width: '60px',
-                  height: '60px',
+                  width: '120px',
+                  height: '120px',
                   borderRadius: '50%',
-                  backgroundColor: 'var(--color-blue-light)',
-                  color: 'var(--color-blue-secondary)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  margin: '0 auto 1.25rem',
-                  boxShadow: '0 4px 10px rgba(0, 102, 254, 0.05)'
+                  overflow: 'hidden',
+                  margin: '0 auto 1.5rem',
+                  border: '3px solid var(--color-blue-secondary)',
+                  boxShadow: '0 8px 20px rgba(0, 102, 254, 0.15)',
+                  position: 'relative'
                 }}>
-                  <User size={24} />
+                  <img 
+                    src={member.image} 
+                    alt={member.name} 
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
                 </div>
                 <h3 style={{ fontSize: '1.25rem', color: 'var(--color-blue-deep)', marginBottom: '0.5rem', textAlign: 'center' }}>
                   {member.name}
