@@ -37,19 +37,22 @@ export default function About() {
 
   const team = [
     { 
-      name: "Kahna", 
+      name: "Kanha", 
       role: "Full stack Developer",
-      image: "/team-kahna.jpg"
+      image: "/team-kanha.jpg",
+      objectPosition: "center 20%"
     },
     { 
       name: "Shruti", 
       role: "Software Developer",
-      image: "/team-shruti.jpg"
+      image: "/team-shruti.jpg",
+      objectPosition: "center 15%"
     },
     { 
       name: "Abhi", 
       role: "Operations Manager",
-      image: "/team-abhi.jpg"
+      image: "/team-abhi.jpg",
+      objectPosition: "center 10%"
     }
   ];
 
@@ -228,7 +231,12 @@ export default function About() {
                   <img 
                     src={member.image} 
                     alt={member.name} 
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    style={{ 
+                      width: '100%', 
+                      height: '100%', 
+                      objectFit: 'cover',
+                      objectPosition: member.objectPosition || 'center'
+                    }}
                   />
                 </div>
                 <h3 style={{ fontSize: '1.25rem', color: 'var(--color-blue-deep)', marginBottom: '0.5rem', textAlign: 'center' }}>
