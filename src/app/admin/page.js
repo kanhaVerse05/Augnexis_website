@@ -341,17 +341,17 @@ export default function AdminDashboard() {
                       </button>
                     </div>
 
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem", marginBottom: "1rem", fontSize: "0.9rem" }}>
-                      <p style={{ color: "var(--color-text-secondary)" }}>
-                        <Mail size={14} style={{ display: "inline", marginRight: "0.25rem", color: "var(--color-blue-secondary)" }} />
-                        <strong>Email: </strong><a href={`mailto:${lead.email}`} style={{ color: "var(--color-blue-secondary)" }}>{lead.email}</a>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "1rem", marginBottom: "1rem", fontSize: "0.9rem" }}>
+                      <p style={{ color: "var(--color-text-secondary)", display: "flex", alignItems: "center", gap: "6px", margin: "0" }}>
+                        <Mail size={14} style={{ color: "var(--color-blue-secondary)", flexShrink: 0 }} />
+                        <strong>Email: </strong><a href={`mailto:${lead.email}`} style={{ color: "var(--color-blue-secondary)", wordBreak: "break-all" }}>{lead.email}</a>
                       </p>
-                      <p style={{ color: "var(--color-text-secondary)" }}>
-                        <Phone size={14} style={{ display: "inline", marginRight: "0.25rem", color: "var(--color-blue-secondary)" }} />
+                      <p style={{ color: "var(--color-text-secondary)", display: "flex", alignItems: "center", gap: "6px", margin: "0" }}>
+                        <Phone size={14} style={{ color: "var(--color-blue-secondary)", flexShrink: 0 }} />
                         <strong>Phone: </strong><a href={`tel:${lead.phone}`} style={{ color: "var(--color-blue-secondary)" }}>{lead.phone}</a>
                       </p>
-                      <p style={{ color: "var(--color-text-secondary)" }}>
-                        <Clock size={14} style={{ display: "inline", marginRight: "0.25rem", color: "var(--color-blue-secondary)" }} />
+                      <p style={{ color: "var(--color-text-secondary)", display: "flex", alignItems: "center", gap: "6px", margin: "0" }}>
+                        <Clock size={14} style={{ color: "var(--color-blue-secondary)", flexShrink: 0 }} />
                         <strong>Received: </strong>{lead.createdAt}
                       </p>
                     </div>
@@ -665,28 +665,43 @@ export default function AdminDashboard() {
                       </div>
                     </div>
 
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem", fontSize: "0.9rem" }}>
-                      <p style={{ color: "var(--color-text-secondary)", display: "flex", alignItems: "center", gap: "4px" }}>
-                        <Mail size={14} style={{ color: "var(--color-blue-secondary)" }} />
-                        <strong>Email: </strong><a href={`mailto:${payment.email}`} style={{ color: "var(--color-blue-secondary)" }}>{payment.email}</a>
-                      </p>
-                      <p style={{ color: "var(--color-text-secondary)", display: "flex", alignItems: "center", gap: "4px" }}>
-                        <Phone size={14} style={{ color: "var(--color-blue-secondary)" }} />
-                        <strong>Phone: </strong><a href={`tel:${payment.phone}`} style={{ color: "var(--color-blue-secondary)" }}>{payment.phone}</a>
-                      </p>
-                      <p style={{ color: "var(--color-text-secondary)", display: "flex", alignItems: "center", gap: "4px" }}>
-                        <Clock size={14} style={{ color: "var(--color-blue-secondary)" }} />
-                        <strong>Created: </strong>{payment.createdAt}
-                      </p>
-                      {payment.updatedAt && (
-                        <p style={{ color: "var(--color-text-secondary)", display: "flex", alignItems: "center", gap: "4px" }}>
-                          <ShieldCheck size={14} style={{ color: "#22c55e" }} />
-                          <strong>Settled: </strong>{payment.updatedAt}
-                        </p>
-                      )}
-                      <p style={{ color: "var(--color-text-secondary)" }}>
-                        <strong>Order ID: </strong><span style={{ fontFamily: "monospace", fontSize: "0.85rem" }}>{payment.id}</span>
-                      </p>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1.5rem", fontSize: "0.9rem", borderTop: "1px dashed var(--color-border)", paddingTop: "1rem" }}>
+                      <div>
+                        <h4 style={{ fontSize: "0.8rem", color: "var(--color-blue-deep)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.5rem", fontWeight: "700" }}>
+                          Contact Details
+                        </h4>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                          <p style={{ color: "var(--color-text-secondary)", display: "flex", alignItems: "center", gap: "6px", margin: "0" }}>
+                            <Mail size={14} style={{ color: "var(--color-blue-secondary)", flexShrink: 0 }} />
+                            <strong>Email: </strong><a href={`mailto:${payment.email}`} style={{ color: "var(--color-blue-secondary)", wordBreak: "break-all" }}>{payment.email}</a>
+                          </p>
+                          <p style={{ color: "var(--color-text-secondary)", display: "flex", alignItems: "center", gap: "6px", margin: "0" }}>
+                            <Phone size={14} style={{ color: "var(--color-blue-secondary)", flexShrink: 0 }} />
+                            <strong>Phone: </strong><a href={`tel:${payment.phone}`} style={{ color: "var(--color-blue-secondary)" }}>{payment.phone}</a>
+                          </p>
+                        </div>
+                      </div>
+
+                      <div>
+                        <h4 style={{ fontSize: "0.8rem", color: "var(--color-blue-deep)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.5rem", fontWeight: "700" }}>
+                          Transaction Info
+                        </h4>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                          <p style={{ color: "var(--color-text-secondary)", margin: "0" }}>
+                            <strong>Order ID: </strong><span style={{ fontFamily: "monospace", fontSize: "0.85rem", wordBreak: "break-all" }}>{payment.id}</span>
+                          </p>
+                          <p style={{ color: "var(--color-text-secondary)", display: "flex", alignItems: "center", gap: "6px", margin: "0" }}>
+                            <Clock size={14} style={{ color: "var(--color-blue-secondary)", flexShrink: 0 }} />
+                            <strong>Created: </strong>{payment.createdAt}
+                          </p>
+                          {payment.updatedAt && (
+                            <p style={{ color: "var(--color-text-secondary)", display: "flex", alignItems: "center", gap: "6px", margin: "0" }}>
+                              <ShieldCheck size={14} style={{ color: "#22c55e", flexShrink: 0 }} />
+                              <strong>Settled: </strong>{payment.updatedAt}
+                            </p>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 ))}
