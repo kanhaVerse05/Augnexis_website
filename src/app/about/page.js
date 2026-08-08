@@ -37,7 +37,7 @@ export default function About() {
     },
     { 
       name: "Abhi", 
-      role: "Co-Founder & Director",
+      role: "Operations Manager",
       image: "/team-abhi.jpg"
     }
   ];
