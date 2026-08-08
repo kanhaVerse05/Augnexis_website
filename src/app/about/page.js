@@ -24,6 +24,17 @@ export default function About() {
     }
   ];
 
+  const directors = [
+    { 
+      name: "Akash Choudhary", 
+      role: "Founder & Director"
+    },
+    { 
+      name: "Abhimanyu Mishra", 
+      role: "Co-Founder & Director"
+    }
+  ];
+
   const team = [
     { 
       name: "Kahna", 
@@ -146,6 +157,49 @@ export default function About() {
             <h2 className="section-title">The Brains Behind Augnexis</h2>
             <p className="section-desc mx-auto">
               Meet our leadership team directing engineering and strategic pathways at Augnexis Technologies.
+            </p>
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "center", gap: "3rem", flexWrap: "wrap", marginTop: "2rem", marginBottom: "4rem" }}>
+            {directors.map((member, index) => (
+              <div key={index} className="stat-card" style={{ 
+                padding: '2.5rem 2rem', 
+                display: 'flex', 
+                flexDirection: 'column', 
+                alignItems: 'center', 
+                textAlign: 'center',
+                minWidth: '280px'
+              }}>
+                <div style={{
+                  width: '60px',
+                  height: '60px',
+                  borderRadius: '50%',
+                  backgroundColor: 'var(--color-blue-light)',
+                  color: 'var(--color-blue-secondary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 1.25rem',
+                  boxShadow: '0 4px 10px rgba(0, 102, 254, 0.05)'
+                }}>
+                  <User size={24} />
+                </div>
+                <h3 style={{ fontSize: '1.25rem', color: 'var(--color-blue-deep)', marginBottom: '0.5rem', textAlign: 'center' }}>
+                  {member.name}
+                </h3>
+                <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem', fontWeight: '600', textAlign: 'center', margin: '0' }}>
+                  {member.role}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {/* Execution Team */}
+          <div className="text-center" style={{ marginTop: "2rem" }}>
+            <span className="sub-title">EXECUTION TEAM</span>
+            <h2 className="section-title" style={{ fontSize: "1.75rem", marginBottom: "0.5rem" }}>Our Engineering & Operations</h2>
+            <p className="section-desc mx-auto" style={{ fontSize: "0.95rem" }}>
+              The core development and execution experts driving client success and building robust software daily.
             </p>
           </div>
 
