@@ -5,6 +5,7 @@ import path from "path";
 const DATA_DIR = path.join(process.cwd(), "data");
 const LEADS_FILE = path.join(DATA_DIR, "leads.json");
 const BLOGS_FILE = path.join(DATA_DIR, "blogs.json");
+const PAYMENTS_FILE = path.join(DATA_DIR, "payments.json");
 
 // Connection Pool (only if DATABASE_URL is set)
 let pool = null;
@@ -22,6 +23,9 @@ function initLocalDB() {
   }
   if (!fs.existsSync(LEADS_FILE)) {
     fs.writeFileSync(LEADS_FILE, JSON.stringify([], null, 2), "utf-8");
+  }
+  if (!fs.existsSync(PAYMENTS_FILE)) {
+    fs.writeFileSync(PAYMENTS_FILE, JSON.stringify([], null, 2), "utf-8");
   }
   if (!fs.existsSync(BLOGS_FILE)) {
     const defaultBlogs = [
@@ -96,6 +100,22 @@ async function initPG() {
         excerpt TEXT NOT NULL,
         image TEXT,
         gradient TEXT
+      );
+    `);
+
+    // Create payments table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS payments (
+        id VARCHAR(50) PRIMARY KEY,
+        client_name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) NOT NULL,
+        phone VARCHAR(50) NOT NULL,
+        amount NUMERIC NOT NULL,
+        purpose VARCHAR(255) NOT NULL,
+        status VARCHAR(50) NOT NULL,
+        payment_session_id VARCHAR(255),
+        created_at VARCHAR(100) NOT NULL,
+        updated_at VARCHAR(100)
       );
     `);
 
@@ -289,5 +309,123 @@ export async function writeBlogs(blogs) {
     }
   } else {
     writeBlogsLocal(blogs);
+  }
+}
+
+// Local JSON Helpers for Payments
+function readPaymentsLocal() {
+  initLocalDB();
+  const data = fs.readFileSync(PAYMENTS_FILE, "utf-8");
+  return JSON.parse(data || "[]");
+}
+
+function writePaymentsLocal(payments) {
+  initLocalDB();
+  fs.writeFileSync(PAYMENTS_FILE, JSON.stringify(payments, null, 2), "utf-8");
+}
+
+// Exported Functions for Payments
+export async function readPayments() {
+  if (pool) {
+    try {
+      await initPG();
+      const result = await pool.query("SELECT * FROM payments ORDER BY created_at DESC");
+      return result.rows.map(row => ({
+        id: row.id,
+        clientName: row.client_name,
+        email: row.email,
+        phone: row.phone,
+        amount: parseFloat(row.amount),
+        purpose: row.purpose,
+        status: row.status,
+        paymentSessionId: row.payment_session_id,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+      }));
+    } catch (err) {
+      console.error("Postgres readPayments failed. Falling back to local JSON.", err);
+      return readPaymentsLocal();
+    }
+  }
+  return readPaymentsLocal();
+}
+
+export async function writePayments(payments) {
+  if (pool) {
+    let client = null;
+    try {
+      await initPG();
+      client = await pool.connect();
+      await client.query("BEGIN");
+      await client.query("DELETE FROM payments");
+      for (const payment of payments) {
+        await client.query(
+          "INSERT INTO payments (id, client_name, email, phone, amount, purpose, status, payment_session_id, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
+          [
+            payment.id,
+            payment.clientName,
+            payment.email,
+            payment.phone,
+            payment.amount,
+            payment.purpose,
+            payment.status,
+            payment.paymentSessionId,
+            payment.createdAt,
+            payment.updatedAt
+          ]
+        );
+      }
+      await client.query("COMMIT");
+      return;
+    } catch (err) {
+      if (client) {
+        try {
+          await client.query("ROLLBACK");
+        } catch (rollbackErr) {
+          console.error("Rollback failed:", rollbackErr);
+        }
+      }
+      console.error("Postgres writePayments failed. Falling back to local JSON.", err);
+      writePaymentsLocal(payments);
+    } finally {
+      if (client) client.release();
+    }
+  } else {
+    writePaymentsLocal(payments);
+  }
+}
+
+export async function addPayment(payment) {
+  const payments = await readPayments();
+  payments.unshift(payment);
+  await writePayments(payments);
+}
+
+export async function updatePaymentStatus(orderId, status) {
+  if (pool) {
+    let client = null;
+    try {
+      await initPG();
+      client = await pool.connect();
+      const updatedAt = new Date().toLocaleString();
+      await client.query(
+        "UPDATE payments SET status = $1, updated_at = $2 WHERE id = $3",
+        [status, updatedAt, orderId]
+      );
+      return;
+    } catch (err) {
+      console.error("Postgres updatePaymentStatus failed. Falling back to local JSON update.", err);
+    } finally {
+      if (client) client.release();
+    }
+  }
+
+  // Fallback local update
+  const payments = await readPaymentsLocal();
+  const index = payments.findIndex(p => p.id === orderId);
+  if (index !== -1) {
+    payments[index].status = status;
+    payments[index].updatedAt = new Date().toLocaleString();
+    writePaymentsLocal(payments);
   }
 }

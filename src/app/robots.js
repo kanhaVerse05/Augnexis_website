@@ -10,7 +10,9 @@ export default function robots() {
           "/admin",
           "/api/leads",
           "/api/admin",
-          "/api/upload"
+          "/api/upload",
+          "/pay/verify",
+          "/api/payment"
         ]
       },
       {

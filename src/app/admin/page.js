@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Lock, Mail, Phone, Clock, Trash2, PlusCircle, FileText, LayoutDashboard, LogOut, Calendar, User, ArrowRight } from "lucide-react";
+import { Lock, Mail, Phone, Clock, Trash2, PlusCircle, FileText, LayoutDashboard, LogOut, Calendar, User, ArrowRight, CreditCard, ShieldCheck } from "lucide-react";
 
 export default function AdminDashboard() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -12,8 +12,10 @@ export default function AdminDashboard() {
   // Data states
   const [leads, setLeads] = useState([]);
   const [blogs, setBlogs] = useState([]);
+  const [payments, setPayments] = useState([]);
   const [leadsLoading, setLeadsLoading] = useState(true);
   const [blogsLoading, setBlogsLoading] = useState(true);
+  const [paymentsLoading, setPaymentsLoading] = useState(true);
 
   // New blog form state
   const [newBlog, setNewBlog] = useState({
@@ -33,6 +35,7 @@ export default function AdminDashboard() {
       setIsLoggedIn(true);
       fetchLeads();
       fetchBlogs();
+      fetchPayments();
     }
   }, []);
 
@@ -93,6 +96,21 @@ export default function AdminDashboard() {
       console.error("Failed to fetch blogs", err);
     } finally {
       setBlogsLoading(false);
+    }
+  };
+
+  const fetchPayments = async () => {
+    setPaymentsLoading(true);
+    try {
+      const res = await fetch("/api/payments");
+      if (res.ok) {
+        const data = await res.json();
+        setPayments(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch payments", err);
+    } finally {
+      setPaymentsLoading(false);
     }
   };
 
@@ -259,6 +277,13 @@ export default function AdminDashboard() {
             style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
           >
             <LayoutDashboard size={16} /> Client Leads ({leads.length})
+          </button>
+          <button
+            onClick={() => setActiveSection("payments")}
+            className={`tech-tab-btn ${activeSection === "payments" ? "active" : ""}`}
+            style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+          >
+            <CreditCard size={16} /> Payments ({payments.length})
           </button>
           <button
             onClick={() => setActiveSection("write-blog")}
@@ -575,6 +600,93 @@ export default function AdminDashboard() {
                       </div>
                       <h3 style={{ fontSize: "1.25rem", margin: "0.75rem 0", color: "var(--color-blue-deep)" }}>{post.title}</h3>
                       <p style={{ color: "var(--color-text-secondary)", fontSize: "0.85rem", lineHeight: "1.5", flexGrow: "1" }}>{post.excerpt}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Section: Payments */}
+        {activeSection === "payments" && (
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem", flexWrap: "wrap", gap: "1rem" }}>
+              <h2 style={{ fontSize: "1.5rem", color: "var(--color-blue-deep)", fontWeight: "700", margin: "0" }}>Client Payments Log</h2>
+              <button onClick={fetchPayments} className="btn btn-secondary" style={{ fontSize: "0.85rem", padding: "6px 12px" }}>
+                Refresh Payments
+              </button>
+            </div>
+            
+            {paymentsLoading ? (
+              <p style={{ color: "var(--color-text-secondary)" }}>Loading payments...</p>
+            ) : payments.length === 0 ? (
+              <div className="glass-card" style={{ padding: "3rem", textAlign: "center" }}>
+                <p style={{ color: "var(--color-text-secondary)" }}>No payment transactions recorded yet.</p>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+                {payments.map((payment) => (
+                  <div key={payment.id} className="glass-card" style={{ padding: "2rem" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", flexWrap: "wrap", gap: "1rem", borderBottom: "1px solid var(--color-border)", paddingBottom: "1rem", marginBottom: "1rem" }}>
+                      <div>
+                        <h3 style={{ fontSize: "1.25rem", color: "var(--color-blue-deep)", fontWeight: "700" }}>{payment.clientName}</h3>
+                        <p style={{ fontSize: "0.85rem", color: "var(--color-text-muted)", marginTop: "0.25rem" }}>
+                          Purpose: <strong style={{ color: "var(--color-blue-deep)" }}>{payment.purpose}</strong>
+                        </p>
+                      </div>
+                      
+                      <div style={{ marginLeft: "auto", display: "flex", flexDirection: "column", alignItems: "end", gap: "0.25rem" }}>
+                        <span style={{ 
+                          fontSize: "1.25rem", 
+                          fontWeight: "800", 
+                          color: "var(--color-blue-secondary)" 
+                        }}>
+                          ₹{payment.amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </span>
+                        
+                        <span style={{
+                          fontSize: "0.75rem",
+                          fontWeight: "700",
+                          textTransform: "uppercase",
+                          padding: "4px 8px",
+                          borderRadius: "4px",
+                          backgroundColor: 
+                            payment.status === "SUCCESS" ? "rgba(34, 197, 94, 0.1)" :
+                            payment.status === "PENDING" ? "rgba(234, 179, 8, 0.1)" :
+                            "rgba(239, 68, 68, 0.1)",
+                          color: 
+                            payment.status === "SUCCESS" ? "#22c55e" :
+                            payment.status === "PENDING" ? "#d97706" :
+                            "#ef4444"
+                        }}>
+                          {payment.status}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem", fontSize: "0.9rem" }}>
+                      <p style={{ color: "var(--color-text-secondary)", display: "flex", alignItems: "center", gap: "4px" }}>
+                        <Mail size={14} style={{ color: "var(--color-blue-secondary)" }} />
+                        <strong>Email: </strong><a href={`mailto:${payment.email}`} style={{ color: "var(--color-blue-secondary)" }}>{payment.email}</a>
+                      </p>
+                      <p style={{ color: "var(--color-text-secondary)", display: "flex", alignItems: "center", gap: "4px" }}>
+                        <Phone size={14} style={{ color: "var(--color-blue-secondary)" }} />
+                        <strong>Phone: </strong><a href={`tel:${payment.phone}`} style={{ color: "var(--color-blue-secondary)" }}>{payment.phone}</a>
+                      </p>
+                      <p style={{ color: "var(--color-text-secondary)", display: "flex", alignItems: "center", gap: "4px" }}>
+                        <Clock size={14} style={{ color: "var(--color-blue-secondary)" }} />
+                        <strong>Created: </strong>{payment.createdAt}
+                      </p>
+                      {payment.updatedAt && (
+                        <p style={{ color: "var(--color-text-secondary)", display: "flex", alignItems: "center", gap: "4px" }}>
+                          <ShieldCheck size={14} style={{ color: "#22c55e" }} />
+                          <strong>Settled: </strong>{payment.updatedAt}
+                        </p>
+                      )}
+                      <p style={{ color: "var(--color-text-secondary)" }}>
+                        <strong>Order ID: </strong><span style={{ fontFamily: "monospace", fontSize: "0.85rem" }}>{payment.id}</span>
+                      </p>
                     </div>
                   </div>
                 ))}
