@@ -1,10 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Script from "next/script";
-import { ShieldCheck, CreditCard, Send, Loader2 } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { ShieldCheck, CreditCard, Send, Loader2, Info } from "lucide-react";
 
-export default function PayPage() {
+function PayFormContent() {
+  const searchParams = useSearchParams();
+  
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -12,8 +15,42 @@ export default function PayPage() {
     amount: "",
     purpose: ""
   });
+
+  const [locks, setLocks] = useState({
+    name: false,
+    email: false,
+    phone: false,
+    amount: false,
+    purpose: false
+  });
+
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+
+  // Pre-fill form from URL query parameters
+  useEffect(() => {
+    const nameParam = searchParams.get("name") || "";
+    const emailParam = searchParams.get("email") || "";
+    const phoneParam = searchParams.get("phone") || "";
+    const amountParam = searchParams.get("amount") || "";
+    const purposeParam = searchParams.get("purpose") || "";
+
+    setForm({
+      name: nameParam,
+      email: emailParam,
+      phone: phoneParam,
+      amount: amountParam,
+      purpose: purposeParam
+    });
+
+    setLocks({
+      name: !!nameParam,
+      email: !!emailParam,
+      phone: !!phoneParam,
+      amount: !!amountParam,
+      purpose: !!purposeParam
+    });
+  }, [searchParams]);
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -71,6 +108,143 @@ export default function PayPage() {
     }
   };
 
+  const hasFixedParams = locks.amount || locks.purpose;
+
+  return (
+    <div className="glass-card" style={{ padding: "2.5rem", borderRadius: "var(--radius-lg)", border: "1px solid var(--color-border)", backgroundColor: "rgba(255, 255, 255, 0.95)", backdropFilter: "blur(10px)", boxShadow: "var(--shadow-xl)" }}>
+      
+      {hasFixedParams && (
+        <div style={{ display: "flex", gap: "10px", padding: "1rem", backgroundColor: "rgba(0, 102, 254, 0.04)", border: "1px solid rgba(0, 102, 254, 0.15)", color: "var(--color-blue-primary)", borderRadius: "var(--radius-md)", marginBottom: "1.5rem", fontSize: "0.85rem", lineHeight: "1.5" }}>
+          <Info size={18} style={{ flexShrink: 0, marginTop: "2px" }} />
+          <div>
+            <strong>Fixed Payment Link:</strong> Some fields are pre-configured by Augnexis Technologies and cannot be modified.
+          </div>
+        </div>
+      )}
+
+      {errorMsg && (
+        <div style={{ padding: "1rem", backgroundColor: "#fff5f5", color: "#e53e3e", borderRadius: "var(--radius-md)", marginBottom: "1.5rem", border: "1px solid #fed7d7", fontSize: "0.9rem", fontWeight: "500" }}>
+          ✕ {errorMsg}
+        </div>
+      )}
+
+      <form onSubmit={handlePayment} style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+        
+        <div className="form-group">
+          <label className="form-label" htmlFor="name">Client Name</label>
+          <input
+            type="text"
+            name="name"
+            id="name"
+            className="form-input"
+            placeholder="Enter full name or company name"
+            value={form.name}
+            onChange={handleChange}
+            readOnly={locks.name}
+            style={locks.name ? { backgroundColor: "#f3f4f6", cursor: "not-allowed", color: "#6b7280" } : {}}
+            required
+          />
+        </div>
+
+        <div className="form-group-row" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+          <div className="form-group">
+            <label className="form-label" htmlFor="email">Email Address</label>
+            <input
+              type="email"
+              name="email"
+              id="email"
+              className="form-input"
+              placeholder="client@example.com"
+              value={form.email}
+              onChange={handleChange}
+              readOnly={locks.email}
+              style={locks.email ? { backgroundColor: "#f3f4f6", cursor: "not-allowed", color: "#6b7280" } : {}}
+              required
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label" htmlFor="phone">Phone Number</label>
+            <input
+              type="tel"
+              name="phone"
+              id="phone"
+              className="form-input"
+              placeholder="9540252590"
+              value={form.phone}
+              onChange={handleChange}
+              readOnly={locks.phone}
+              style={locks.phone ? { backgroundColor: "#f3f4f6", cursor: "not-allowed", color: "#6b7280" } : {}}
+              required
+            />
+          </div>
+        </div>
+
+        <div className="form-group">
+          <label className="form-label" htmlFor="purpose">Payment Purpose / Invoice #</label>
+          <input
+            type="text"
+            name="purpose"
+            id="purpose"
+            className="form-input"
+            placeholder="e.g. Invoice #204 - E-commerce Mobile App Development"
+            value={form.purpose}
+            onChange={handleChange}
+            readOnly={locks.purpose}
+            style={locks.purpose ? { backgroundColor: "#f3f4f6", cursor: "not-allowed", color: "#6b7280" } : {}}
+            required
+          />
+        </div>
+
+        <div className="form-group">
+          <label className="form-label" htmlFor="amount">Amount (INR)</label>
+          <div style={{ position: "relative" }}>
+            <span style={{ position: "absolute", left: "15px", top: "50%", transform: "translateY(-50%)", color: "var(--color-text-muted)", fontWeight: "600" }}>₹</span>
+            <input
+              type="number"
+              name="amount"
+              id="amount"
+              className="form-input"
+              style={locks.amount ? { paddingLeft: "30px", backgroundColor: "#f3f4f6", cursor: "not-allowed", color: "#6b7280" } : { paddingLeft: "30px" }}
+              placeholder="0.00"
+              min="1"
+              step="0.01"
+              value={form.amount}
+              onChange={handleChange}
+              readOnly={locks.amount}
+              required
+            />
+          </div>
+        </div>
+
+        <button 
+          type="submit" 
+          className="btn btn-primary" 
+          style={{ width: "100%", justifyContent: "center", padding: "14px 24px", marginTop: "1rem", display: "flex", gap: "8px", alignItems: "center" }}
+          disabled={loading}
+        >
+          {loading ? (
+            <>
+              <Loader2 size={18} className="animate-spin" /> Initiating Gateway...
+            </>
+          ) : (
+            <>
+              Proceed to Secure Pay <Send size={16} />
+            </>
+          )}
+        </button>
+
+      </form>
+
+      {/* Security Trust badge */}
+      <div style={{ marginTop: "1.5rem", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
+        <ShieldCheck size={16} style={{ color: "#22c55e" }} /> Powered by Cashfree | 256-bit SSL Encrypted
+      </div>
+
+    </div>
+  );
+}
+
+export default function PayPage() {
   return (
     <>
       <Script src="https://sdk.cashfree.com/js/v3/cashfree.js" strategy="lazyOnload" />
@@ -87,119 +261,14 @@ export default function PayPage() {
             <p style={{ color: "var(--color-text-muted)", marginTop: "0.5rem" }}>Submit payment coordinates below to complete invoices or custom milestone fees.</p>
           </div>
 
-          {/* Form Card */}
-          <div className="glass-card" style={{ padding: "2.5rem", borderRadius: "var(--radius-lg)", border: "1px solid var(--color-border)", backgroundColor: "rgba(255, 255, 255, 0.95)", backdropFilter: "blur(10px)", boxShadow: "var(--shadow-xl)" }}>
-            
-            {errorMsg && (
-              <div style={{ padding: "1rem", backgroundColor: "#fff5f5", color: "#e53e3e", borderRadius: "var(--radius-md)", marginBottom: "1.5rem", border: "1px solid #fed7d7", fontSize: "0.9rem", fontWeight: "500" }}>
-                ✕ {errorMsg}
-              </div>
-            )}
-
-            <form onSubmit={handlePayment} style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-              
-              <div className="form-group">
-                <label className="form-label" htmlFor="name">Client Name</label>
-                <input
-                  type="text"
-                  name="name"
-                  id="name"
-                  className="form-input"
-                  placeholder="Enter full name or company name"
-                  value={form.name}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
-
-              <div className="form-group-row" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-                <div className="form-group">
-                  <label className="form-label" htmlFor="email">Email Address</label>
-                  <input
-                    type="email"
-                    name="email"
-                    id="email"
-                    className="form-input"
-                    placeholder="client@example.com"
-                    value={form.email}
-                    onChange={handleChange}
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label" htmlFor="phone">Phone Number</label>
-                  <input
-                    type="tel"
-                    name="phone"
-                    id="phone"
-                    className="form-input"
-                    placeholder="9540252590"
-                    value={form.phone}
-                    onChange={handleChange}
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label" htmlFor="purpose">Payment Purpose / Invoice #</label>
-                <input
-                  type="text"
-                  name="purpose"
-                  id="purpose"
-                  className="form-input"
-                  placeholder="e.g. Invoice #204 - E-commerce Mobile App Development"
-                  value={form.purpose}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label" htmlFor="amount">Amount (INR)</label>
-                <div style={{ position: "relative" }}>
-                  <span style={{ position: "absolute", left: "15px", top: "50%", transform: "translateY(-50%)", color: "var(--color-text-muted)", fontWeight: "600" }}>₹</span>
-                  <input
-                    type="number"
-                    name="amount"
-                    id="amount"
-                    className="form-input"
-                    style={{ paddingLeft: "30px" }}
-                    placeholder="0.00"
-                    min="1"
-                    step="0.01"
-                    value={form.amount}
-                    onChange={handleChange}
-                    required
-                  />
-                </div>
-              </div>
-
-              <button 
-                type="submit" 
-                className="btn btn-primary" 
-                style={{ width: "100%", justifyContent: "center", padding: "14px 24px", marginTop: "1rem", display: "flex", gap: "8px", alignItems: "center" }}
-                disabled={loading}
-              >
-                {loading ? (
-                  <>
-                    <Loader2 size={18} className="animate-spin" /> Initiating Gateway...
-                  </>
-                ) : (
-                  <>
-                    Proceed to Secure Pay <Send size={16} />
-                  </>
-                )}
-              </button>
-
-            </form>
-
-            {/* Security Trust badge */}
-            <div style={{ marginTop: "1.5rem", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
-              <ShieldCheck size={16} style={{ color: "#22c55e" }} /> Powered by Cashfree | 256-bit SSL Encrypted
+          <Suspense fallback={
+            <div className="glass-card" style={{ padding: "3rem", textAlign: "center" }}>
+              <Loader2 size={36} className="animate-spin" style={{ margin: "0 auto", color: "var(--color-blue-secondary)" }} />
+              <p style={{ color: "var(--color-text-muted)", marginTop: "1rem" }}>Loading payment config...</p>
             </div>
-
-          </div>
+          }>
+            <PayFormContent />
+          </Suspense>
 
         </div>
       </div>

@@ -17,6 +17,17 @@ export default function AdminDashboard() {
   const [blogsLoading, setBlogsLoading] = useState(true);
   const [paymentsLoading, setPaymentsLoading] = useState(true);
 
+  // Link generation states
+  const [genForm, setGenForm] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    amount: "",
+    purpose: ""
+  });
+  const [generatedUrl, setGeneratedUrl] = useState("");
+  const [copied, setCopied] = useState(false);
+
   // New blog form state
   const [newBlog, setNewBlog] = useState({
     title: "",
@@ -112,6 +123,33 @@ export default function AdminDashboard() {
     } finally {
       setPaymentsLoading(false);
     }
+  };
+
+  const handleGenerateLink = (e) => {
+    e.preventDefault();
+    if (!genForm.amount || !genForm.purpose) {
+      alert("Amount and Purpose are required to generate a link.");
+      return;
+    }
+    
+    // Construct search parameters
+    const params = new URLSearchParams();
+    if (genForm.name) params.append("name", genForm.name);
+    if (genForm.email) params.append("email", genForm.email);
+    if (genForm.phone) params.append("phone", genForm.phone);
+    params.append("amount", genForm.amount);
+    params.append("purpose", genForm.purpose);
+
+    const baseUrl = window.location.origin;
+    const paymentUrl = `${baseUrl}/pay?${params.toString()}`;
+    setGeneratedUrl(paymentUrl);
+    setCopied(false);
+  };
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(generatedUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const handleDeleteLead = async (id) => {
@@ -610,103 +648,226 @@ export default function AdminDashboard() {
 
         {/* Section: Payments */}
         {activeSection === "payments" && (
-          <div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem", flexWrap: "wrap", gap: "1rem" }}>
-              <h2 style={{ fontSize: "1.5rem", color: "var(--color-blue-deep)", fontWeight: "700", margin: "0" }}>Client Payments Log</h2>
-              <button onClick={fetchPayments} className="btn btn-secondary" style={{ fontSize: "0.85rem", padding: "6px 12px" }}>
-                Refresh Payments
-              </button>
-            </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "2rem", alignItems: "start" }}>
             
-            {paymentsLoading ? (
-              <p style={{ color: "var(--color-text-secondary)" }}>Loading payments...</p>
-            ) : payments.length === 0 ? (
-              <div className="glass-card" style={{ padding: "3rem", textAlign: "center" }}>
-                <p style={{ color: "var(--color-text-secondary)" }}>No payment transactions recorded yet.</p>
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-                {payments.map((payment) => (
-                  <div key={payment.id} className="glass-card" style={{ padding: "2rem" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", flexWrap: "wrap", gap: "1rem", borderBottom: "1px solid var(--color-border)", paddingBottom: "1rem", marginBottom: "1rem" }}>
-                      <div>
-                        <h3 style={{ fontSize: "1.25rem", color: "var(--color-blue-deep)", fontWeight: "700" }}>{payment.clientName}</h3>
-                        <p style={{ fontSize: "0.85rem", color: "var(--color-text-muted)", marginTop: "0.25rem" }}>
-                          Purpose: <strong style={{ color: "var(--color-blue-deep)" }}>{payment.purpose}</strong>
-                        </p>
-                      </div>
-                      
-                      <div style={{ marginLeft: "auto", display: "flex", flexDirection: "column", alignItems: "end", gap: "0.25rem" }}>
-                        <span style={{ 
-                          fontSize: "1.25rem", 
-                          fontWeight: "800", 
-                          color: "var(--color-blue-secondary)" 
-                        }}>
-                          ₹{payment.amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                        </span>
-                        
-                        <span style={{
-                          fontSize: "0.75rem",
-                          fontWeight: "700",
-                          textTransform: "uppercase",
-                          padding: "4px 8px",
-                          borderRadius: "4px",
-                          backgroundColor: 
-                            payment.status === "SUCCESS" ? "rgba(34, 197, 94, 0.1)" :
-                            payment.status === "PENDING" ? "rgba(234, 179, 8, 0.1)" :
-                            "rgba(239, 68, 68, 0.1)",
-                          color: 
-                            payment.status === "SUCCESS" ? "#22c55e" :
-                            payment.status === "PENDING" ? "#d97706" :
-                            "#ef4444"
-                        }}>
-                          {payment.status}
-                        </span>
-                      </div>
-                    </div>
+            {/* Left Column: Generate Link & QR */}
+            <div className="glass-card" style={{ padding: "2rem", border: "1px solid var(--color-border)", position: "sticky", top: "20px" }}>
+              <h2 style={{ fontSize: "1.3rem", color: "var(--color-blue-deep)", fontWeight: "700", marginBottom: "0.25rem" }}>
+                Generate Payment Link
+              </h2>
+              <p style={{ color: "var(--color-text-secondary)", fontSize: "0.85rem", marginBottom: "1.5rem" }}>
+                Create custom billing links with pre-filled amounts & invoices for clients.
+              </p>
 
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1.5rem", fontSize: "0.9rem", borderTop: "1px dashed var(--color-border)", paddingTop: "1rem" }}>
-                      <div>
-                        <h4 style={{ fontSize: "0.8rem", color: "var(--color-blue-deep)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.5rem", fontWeight: "700" }}>
-                          Contact Details
-                        </h4>
-                        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                          <p style={{ color: "var(--color-text-secondary)", display: "flex", alignItems: "center", gap: "6px", margin: "0" }}>
-                            <Mail size={14} style={{ color: "var(--color-blue-secondary)", flexShrink: 0 }} />
-                            <strong>Email: </strong><a href={`mailto:${payment.email}`} style={{ color: "var(--color-blue-secondary)", wordBreak: "break-all" }}>{payment.email}</a>
-                          </p>
-                          <p style={{ color: "var(--color-text-secondary)", display: "flex", alignItems: "center", gap: "6px", margin: "0" }}>
-                            <Phone size={14} style={{ color: "var(--color-blue-secondary)", flexShrink: 0 }} />
-                            <strong>Phone: </strong><a href={`tel:${payment.phone}`} style={{ color: "var(--color-blue-secondary)" }}>{payment.phone}</a>
-                          </p>
-                        </div>
-                      </div>
+              <form onSubmit={handleGenerateLink} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                <div className="form-group">
+                  <label className="form-label" style={{ fontSize: "0.8rem", marginBottom: "0.25rem" }}>Client Name (Optional)</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="John Doe"
+                    value={genForm.name}
+                    onChange={(e) => setGenForm({ ...genForm, name: e.target.value })}
+                  />
+                </div>
 
-                      <div>
-                        <h4 style={{ fontSize: "0.8rem", color: "var(--color-blue-deep)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.5rem", fontWeight: "700" }}>
-                          Transaction Info
-                        </h4>
-                        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                          <p style={{ color: "var(--color-text-secondary)", margin: "0" }}>
-                            <strong>Order ID: </strong><span style={{ fontFamily: "monospace", fontSize: "0.85rem", wordBreak: "break-all" }}>{payment.id}</span>
-                          </p>
-                          <p style={{ color: "var(--color-text-secondary)", display: "flex", alignItems: "center", gap: "6px", margin: "0" }}>
-                            <Clock size={14} style={{ color: "var(--color-blue-secondary)", flexShrink: 0 }} />
-                            <strong>Created: </strong>{payment.createdAt}
-                          </p>
-                          {payment.updatedAt && (
-                            <p style={{ color: "var(--color-text-secondary)", display: "flex", alignItems: "center", gap: "6px", margin: "0" }}>
-                              <ShieldCheck size={14} style={{ color: "#22c55e", flexShrink: 0 }} />
-                              <strong>Settled: </strong>{payment.updatedAt}
-                            </p>
-                          )}
-                        </div>
-                      </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: "0.8rem", marginBottom: "0.25rem" }}>Email (Optional)</label>
+                    <input
+                      type="email"
+                      className="form-input"
+                      placeholder="client@mail.com"
+                      value={genForm.email}
+                      onChange={(e) => setGenForm({ ...genForm, email: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: "0.8rem", marginBottom: "0.25rem" }}>Phone (Optional)</label>
+                    <input
+                      type="tel"
+                      className="form-input"
+                      placeholder="9540252590"
+                      value={genForm.phone}
+                      onChange={(e) => setGenForm({ ...genForm, phone: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" style={{ fontSize: "0.8rem", marginBottom: "0.25rem" }}>Payment Purpose / Invoice *</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. Website Hosting Fee"
+                    value={genForm.purpose}
+                    onChange={(e) => setGenForm({ ...genForm, purpose: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" style={{ fontSize: "0.8rem", marginBottom: "0.25rem" }}>Amount (INR) *</label>
+                  <input
+                    type="number"
+                    className="form-input"
+                    placeholder="10000"
+                    min="1"
+                    step="0.01"
+                    value={genForm.amount}
+                    onChange={(e) => setGenForm({ ...genForm, amount: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <button type="submit" className="btn btn-primary" style={{ width: "100%", justifyContent: "center", padding: "10px", display: "flex", gap: "8px", alignItems: "center" }}>
+                  <CreditCard size={16} /> Generate Link & QR Code
+                </button>
+              </form>
+
+              {/* Generated Section */}
+              {generatedUrl && (
+                <div style={{ marginTop: "2rem", borderTop: "1px dashed var(--color-border)", paddingTop: "1.5rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.5rem" }}>
+                    <span style={{ fontSize: "0.75rem", fontWeight: "700", color: "var(--color-blue-secondary)", textTransform: "uppercase" }}>Scan to Pay QR</span>
+                    <img 
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(generatedUrl)}`}
+                      alt="Payment QR Code"
+                      style={{ border: "1px solid var(--color-border)", padding: "8px", borderRadius: "8px", backgroundColor: "#fff", width: "150px", height: "150px" }}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: "0.75rem", marginBottom: "0.25rem" }}>Copy Link</label>
+                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                      <input
+                        type="text"
+                        className="form-input"
+                        value={generatedUrl}
+                        readOnly
+                        style={{ fontSize: "0.8rem", backgroundColor: "#f9fafb" }}
+                      />
+                      <button onClick={handleCopyLink} className="btn btn-secondary" style={{ padding: "8px 12px", fontSize: "0.8rem", flexShrink: 0 }}>
+                        {copied ? "Copied!" : "Copy"}
+                      </button>
                     </div>
                   </div>
-                ))}
+
+                  <a
+                    href={`https://api.whatsapp.com/send?${genForm.phone ? `phone=91${genForm.phone}&` : ""}text=${encodeURIComponent(
+                      `Hello ${genForm.name || "Client"},\n\nPlease find your secure payment link for "${genForm.purpose}" of amount ₹${genForm.amount}:\n${generatedUrl}\n\nThank you,\nAugnexis Technologies`
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-primary"
+                    style={{ backgroundColor: "#25d366", borderColor: "#25d366", width: "100%", justifyContent: "center", display: "flex", gap: "8px", alignItems: "center", fontSize: "0.85rem" }}
+                  >
+                    Share on WhatsApp
+                  </a>
+                </div>
+              )}
+            </div>
+
+            {/* Right Column: Transactions Log */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem" }}>
+                <h2 style={{ fontSize: "1.3rem", color: "var(--color-blue-deep)", fontWeight: "700", margin: "0" }}>Client Payments Log</h2>
+                <button onClick={fetchPayments} className="btn btn-secondary" style={{ fontSize: "0.75rem", padding: "4px 10px" }}>
+                  Refresh
+                </button>
               </div>
-            )}
+
+              {paymentsLoading ? (
+                <p style={{ color: "var(--color-text-secondary)" }}>Loading payments...</p>
+              ) : payments.length === 0 ? (
+                <div className="glass-card" style={{ padding: "3rem", textAlign: "center" }}>
+                  <p style={{ color: "var(--color-text-secondary)" }}>No payment transactions recorded yet.</p>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+                  {payments.map((payment) => (
+                    <div key={payment.id} className="glass-card" style={{ padding: "2rem" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", flexWrap: "wrap", gap: "1rem", borderBottom: "1px solid var(--color-border)", paddingBottom: "1rem", marginBottom: "1rem" }}>
+                        <div>
+                          <h3 style={{ fontSize: "1.25rem", color: "var(--color-blue-deep)", fontWeight: "700" }}>{payment.clientName}</h3>
+                          <p style={{ fontSize: "0.85rem", color: "var(--color-text-muted)", marginTop: "0.25rem" }}>
+                            Purpose: <strong style={{ color: "var(--color-blue-deep)" }}>{payment.purpose}</strong>
+                          </p>
+                        </div>
+                        
+                        <div style={{ marginLeft: "auto", display: "flex", flexDirection: "column", alignItems: "end", gap: "0.25rem" }}>
+                          <span style={{ 
+                            fontSize: "1.25rem", 
+                            fontWeight: "800", 
+                            color: "var(--color-blue-secondary)" 
+                          }}>
+                            ₹{payment.amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                          </span>
+                          
+                          <span style={{
+                            fontSize: "0.75rem",
+                            fontWeight: "700",
+                            textTransform: "uppercase",
+                            padding: "4px 8px",
+                            borderRadius: "4px",
+                            backgroundColor: 
+                              payment.status === "SUCCESS" ? "rgba(34, 197, 94, 0.1)" :
+                              payment.status === "PENDING" ? "rgba(234, 179, 8, 0.1)" :
+                              "rgba(239, 68, 68, 0.1)",
+                            color: 
+                              payment.status === "SUCCESS" ? "#22c55e" :
+                              payment.status === "PENDING" ? "#d97706" :
+                              "#ef4444"
+                          }}>
+                            {payment.status}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1.5rem", fontSize: "0.9rem", borderTop: "1px dashed var(--color-border)", paddingTop: "1rem" }}>
+                        <div>
+                          <h4 style={{ fontSize: "0.8rem", color: "var(--color-blue-deep)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.5rem", fontWeight: "700" }}>
+                            Contact Details
+                          </h4>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                            <p style={{ color: "var(--color-text-secondary)", display: "flex", alignItems: "center", gap: "6px", margin: "0" }}>
+                              <Mail size={14} style={{ color: "var(--color-blue-secondary)", flexShrink: 0 }} />
+                              <strong>Email: </strong><a href={`mailto:${payment.email}`} style={{ color: "var(--color-blue-secondary)", wordBreak: "break-all" }}>{payment.email}</a>
+                            </p>
+                            <p style={{ color: "var(--color-text-secondary)", display: "flex", alignItems: "center", gap: "6px", margin: "0" }}>
+                              <Phone size={14} style={{ color: "var(--color-blue-secondary)", flexShrink: 0 }} />
+                              <strong>Phone: </strong><a href={`tel:${payment.phone}`} style={{ color: "var(--color-blue-secondary)" }}>{payment.phone}</a>
+                            </p>
+                          </div>
+                        </div>
+
+                        <div>
+                          <h4 style={{ fontSize: "0.8rem", color: "var(--color-blue-deep)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.5rem", fontWeight: "700" }}>
+                            Transaction Info
+                          </h4>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                            <p style={{ color: "var(--color-text-secondary)", margin: "0" }}>
+                              <strong>Order ID: </strong><span style={{ fontFamily: "monospace", fontSize: "0.85rem", wordBreak: "break-all" }}>{payment.id}</span>
+                            </p>
+                            <p style={{ color: "var(--color-text-secondary)", display: "flex", alignItems: "center", gap: "6px", margin: "0" }}>
+                              <Clock size={14} style={{ color: "var(--color-blue-secondary)", flexShrink: 0 }} />
+                              <strong>Created: </strong>{payment.createdAt}
+                            </p>
+                            {payment.updatedAt && (
+                              <p style={{ color: "var(--color-text-secondary)", display: "flex", alignItems: "center", gap: "6px", margin: "0" }}>
+                                <ShieldCheck size={14} style={{ color: "#22c55e", flexShrink: 0 }} />
+                                <strong>Settled: </strong>{payment.updatedAt}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
           </div>
         )}
       </div>
