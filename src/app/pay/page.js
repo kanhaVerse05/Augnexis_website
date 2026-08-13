@@ -74,33 +74,74 @@ function PayFormContent() {
         throw new Error(data.error || "Failed to initiate payment");
       }
 
-      const { paymentSessionId, orderId, isMock, env } = data;
+      // 2. Initialize Razorpay SDK and trigger checkout
+      if (typeof window.Razorpay === "undefined") {
+        throw new Error("Razorpay SDK not loaded. Please try again.");
+      }
 
-      // 2. Redirect to verification or open checkout modal
-      if (isMock) {
-        // Redirect directly to verify for mock sandbox test mode
-        window.location.href = `/pay/verify?order_id=${orderId}`;
-      } else {
-        // Initialize Cashfree SDK and trigger checkout
-        if (typeof window.Cashfree === "undefined") {
-          throw new Error("Cashfree SDK not loaded. Please try again.");
-        }
+      const keyId = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "rzp_test_TPH0ZUX3RK4QLa";
 
-        const cashfree = window.Cashfree({ mode: env });
-        
-        const checkoutOptions = {
-          paymentSessionId: paymentSessionId,
-          returnUrl: `${window.location.origin}/pay/verify?order_id={order_id}`
-        };
+      const options = {
+        key: keyId,
+        amount: data.amount, // Already in paise from backend response
+        currency: "INR",
+        name: "Augnexis Technologies",
+        description: form.purpose,
+        order_id: data.orderId,
+        handler: async function (response) {
+          setLoading(true);
+          try {
+            const verifyRes = await fetch("/api/payment/verify-order", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                orderId: data.orderId,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_signature: response.razorpay_signature
+              })
+            });
 
-        cashfree.checkout(checkoutOptions).then((result) => {
-          if (result.error) {
-            console.error("Cashfree checkout error:", result.error.message);
-            setErrorMsg(result.error.message);
+            if (verifyRes.ok) {
+              // Redirect to success page
+              window.location.href = `/pay/verify?order_id=${data.orderId}`;
+            } else {
+              const verifyData = await verifyRes.json();
+              throw new Error(verifyData.error || "Payment verification failed.");
+            }
+          } catch (err) {
+            setErrorMsg(err.message);
             setLoading(false);
           }
-        });
-      }
+        },
+        prefill: {
+          name: form.name,
+          email: form.email,
+          contact: form.phone
+        },
+        notes: {
+          purpose: form.purpose
+        },
+        theme: {
+          color: "#0066fe" // Slate blue matching the theme
+        },
+        modal: {
+          ondismiss: function () {
+            setLoading(false);
+            console.log("Razorpay payment checkout dismissed by client.");
+          }
+        }
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.on("payment.failed", function (resp) {
+        console.error("Razorpay payment failure:", resp.error);
+        setErrorMsg(`Payment Failed: ${resp.error.description}`);
+        setLoading(false);
+      });
+      
+      rzp.open();
+
     } catch (err) {
       console.error("Payment flow error:", err);
       setErrorMsg(err.message || "An unexpected error occurred");
@@ -237,7 +278,7 @@ function PayFormContent() {
 
       {/* Security Trust badge */}
       <div style={{ marginTop: "1.5rem", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
-        <ShieldCheck size={16} style={{ color: "#22c55e" }} /> Powered by Cashfree | 256-bit SSL Encrypted
+        <ShieldCheck size={16} style={{ color: "#22c55e" }} /> Powered by Razorpay | 256-bit SSL Encrypted
       </div>
 
     </div>
@@ -247,7 +288,7 @@ function PayFormContent() {
 export default function PayPage() {
   return (
     <>
-      <Script src="https://sdk.cashfree.com/js/v3/cashfree.js" strategy="lazyOnload" />
+      <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="lazyOnload" />
 
       <div className="payment-page" style={{ padding: "120px 0 80px 0", background: "linear-gradient(135deg, #f8faff 0%, #ffffff 100%)", minHeight: "100vh" }}>
         <div className="container" style={{ maxWidth: "600px", margin: "0 auto", padding: "0 20px" }}>

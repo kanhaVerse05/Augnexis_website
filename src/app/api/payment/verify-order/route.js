@@ -1,88 +1,99 @@
 import { NextResponse } from "next/server";
 import { readPayments, updatePaymentStatus } from "@/lib/db";
+import crypto from "crypto";
 
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { orderId } = body;
+    const { orderId, razorpay_payment_id, razorpay_order_id, razorpay_signature } = body;
 
-    if (!orderId) {
-      return NextResponse.json({ error: "orderId is required" }, { status: 400 });
+    const finalOrderId = razorpay_order_id || orderId;
+
+    if (!finalOrderId) {
+      return NextResponse.json({ error: "Order ID is required" }, { status: 400 });
     }
 
-    // Get current payment record from the database
+    // Retrieve payment record from database
     const payments = await readPayments();
-    const payment = payments.find((p) => p.id === orderId);
+    const payment = payments.find((p) => p.id === finalOrderId);
 
     if (!payment) {
       return NextResponse.json({ error: "Payment record not found" }, { status: 404 });
     }
 
-    // Get credentials
-    const appId = process.env.CASHFREE_APP_ID;
-    const secretKey = process.env.CASHFREE_SECRET_KEY;
-    const env = process.env.CASHFREE_ENV || "sandbox";
+    const keyId = process.env.RAZORPAY_KEY_ID;
+    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+
+    if (!keySecret) {
+      console.error("Razorpay key secret is missing on the server.");
+      return NextResponse.json({ error: "Razorpay secret is not configured" }, { status: 500 });
+    }
 
     let finalStatus = "PENDING";
     let transactionDetails = {};
 
-    // Check if running in mock mode
-    const isMock = payment.paymentSessionId.startsWith("mock_session_") || !appId || !secretKey || secretKey.includes("PLACEHOLDER");
+    // 1. If we have payment details from checkout response, verify the signature
+    if (razorpay_payment_id && razorpay_signature) {
+      const text = finalOrderId + "|" + razorpay_payment_id;
+      const generatedSignature = crypto
+        .createHmac("sha256", keySecret)
+        .update(text)
+        .digest("hex");
 
-    if (isMock) {
-      // Mock success for testing purposes
-      finalStatus = "SUCCESS";
-      transactionDetails = {
-        paymentGateway: "Cashfree (Mock Sandbox)",
-        paymentMode: "UPI (Mock)",
-        referenceId: `ref_mock_${Date.now()}`,
-        txTime: new Date().toLocaleString()
-      };
-      await updatePaymentStatus(orderId, "SUCCESS");
-    } else {
-      // Call Cashfree verification API
-      const cashfreeUrl = env === "production"
-        ? `https://api.cashfree.com/pg/orders/${orderId}`
-        : `https://sandbox.cashfree.com/pg/orders/${orderId}`;
-
-      const response = await fetch(cashfreeUrl, {
-        method: "GET",
-        headers: {
-          "x-client-id": appId,
-          "x-client-secret": secretKey,
-          "x-api-version": "2023-08-01",
-          "Content-Type": "application/json"
-        }
-      });
-
-      if (!response.ok) {
-        console.error("Cashfree order verification failed:", await response.text());
-        return NextResponse.json({ error: "Verification failed on payment gateway" }, { status: 500 });
-      }
-
-      const orderData = await response.json();
-      const gatewayStatus = orderData.order_status; // PAID, FAILED, ACTIVE, EXPIRED, etc.
-
-      if (gatewayStatus === "PAID") {
+      if (generatedSignature === razorpay_signature) {
         finalStatus = "SUCCESS";
-      } else if (gatewayStatus === "FAILED" || gatewayStatus === "EXPIRED") {
-        finalStatus = "FAILED";
+        transactionDetails = {
+          paymentGateway: "Razorpay",
+          paymentMode: "Online",
+          referenceId: razorpay_payment_id,
+          txTime: new Date().toLocaleString()
+        };
+        await updatePaymentStatus(finalOrderId, "SUCCESS");
       } else {
-        finalStatus = "PENDING";
+        console.error("Razorpay Signature mismatch. Expected:", generatedSignature, "Got:", razorpay_signature);
+        finalStatus = "FAILED";
+        await updatePaymentStatus(finalOrderId, "FAILED");
+        return NextResponse.json({ error: "Signature verification failed. Potential tampering." }, { status: 400 });
       }
-
-      await updatePaymentStatus(orderId, finalStatus);
-      transactionDetails = {
-        paymentGateway: "Cashfree",
-        paymentMode: orderData.payment_splits?.[0]?.payment_method || "Online",
-        referenceId: orderData.cf_order_id || "",
-        txTime: orderData.created_at || ""
-      };
+    } else {
+      // 2. Fallback check: If the signatures are not supplied, poll Razorpay API directly
+      console.log(`Checking order status directly from Razorpay API for: ${finalOrderId}`);
+      try {
+        const auth = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
+        const response = await fetch(`https://api.razorpay.com/v1/orders/${finalOrderId}`, {
+          headers: {
+            "Authorization": `Basic ${auth}`
+          }
+        });
+        
+        if (response.ok) {
+          const orderData = await response.json();
+          if (orderData.status === "paid") {
+            finalStatus = "SUCCESS";
+            transactionDetails = {
+              paymentGateway: "Razorpay",
+              paymentMode: "Online",
+              referenceId: orderData.id,
+              txTime: new Date().toLocaleString()
+            };
+            await updatePaymentStatus(finalOrderId, "SUCCESS");
+          } else if (orderData.status === "attempted") {
+            finalStatus = "PENDING";
+          } else {
+            finalStatus = "FAILED";
+            await updatePaymentStatus(finalOrderId, "FAILED");
+          }
+        } else {
+          console.error("Razorpay order poll failed:", await response.text());
+        }
+      } catch (err) {
+        console.error("Error executing fallback order poll on Razorpay:", err);
+      }
     }
 
     return NextResponse.json({
       success: true,
-      orderId,
+      orderId: finalOrderId,
       status: finalStatus,
       clientName: payment.clientName,
       amount: payment.amount,

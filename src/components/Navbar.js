@@ -10,6 +10,9 @@ export default function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const pathname = usePathname();
 
+  const isHunterOrAdmin = pathname?.startsWith("/lead-hunter") || pathname?.startsWith("/admin");
+  if (isHunterOrAdmin) return null;
+
   useEffect(() => {
     const handleScroll = () => {
       if (window.scrollY > 20) {

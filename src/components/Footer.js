@@ -1,9 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Mail, Phone, MapPin, Facebook, Instagram, ArrowRight } from "lucide-react";
 
 export default function Footer() {
+  const pathname = usePathname();
+  const isHunterOrAdmin = pathname?.startsWith("/lead-hunter") || pathname?.startsWith("/admin");
+  if (isHunterOrAdmin) return null;
+
   const currentYear = new Date().getFullYear();
 
   return (

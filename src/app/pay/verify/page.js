@@ -60,7 +60,7 @@ function VerifyContent() {
         <div style={{ textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: "1rem" }}>
           <Loader2 size={48} className="animate-spin" style={{ color: "var(--color-blue-secondary)" }} />
           <h2 style={{ fontSize: "1.4rem", fontWeight: "700", color: "var(--color-blue-primary)" }}>Verifying Payment Status</h2>
-          <p style={{ color: "var(--color-text-muted)" }}>Please do not close this window or press back. We are fetching your transaction details from Cashfree...</p>
+          <p style={{ color: "var(--color-text-muted)" }}>Please do not close this window or press back. We are fetching your transaction details from Razorpay...</p>
         </div>
       )}
 

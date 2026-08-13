@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { addPayment } from "@/lib/db";
+import Razorpay from "razorpay";
 
 export async function POST(request) {
   try {
@@ -22,67 +23,49 @@ export async function POST(request) {
       );
     }
 
-    // Generate a unique order ID
-    const orderId = `order_${Date.now()}_${Math.floor(100 + Math.random() * 900)}`;
-    const customerId = `cust_${Date.now()}`;
+    // Razorpay requires amount in paise (minimum 100 paise = 1 INR)
+    const amountPaise = Math.round(numericAmount * 100);
+    if (amountPaise < 100) {
+      return NextResponse.json(
+        { error: "Amount must be at least 1.00 INR (100 paise)" },
+        { status: 400 }
+      );
+    }
 
-    // Get Cashfree credentials from environment variables
-    const appId = process.env.CASHFREE_APP_ID;
-    const secretKey = process.env.CASHFREE_SECRET_KEY;
-    const env = process.env.CASHFREE_ENV || "sandbox";
+    const keyId = process.env.RAZORPAY_KEY_ID;
+    const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
-    const cashfreeUrl = env === "production"
-      ? "https://api.cashfree.com/pg/orders"
-      : "https://sandbox.cashfree.com/pg/orders";
+    if (!keyId || !keySecret) {
+      console.error("Razorpay API keys are missing on the server.");
+      return NextResponse.json(
+        { error: "Razorpay API configuration is missing on the server." },
+        { status: 500 }
+      );
+    }
 
-    // Host domain determination for return URL
-    const host = request.headers.get("host") || "augnexis.tech";
-    const protocol = host.includes("localhost") ? "http" : "https";
-    const baseUrl = `${protocol}://${host}`;
+    // Initialize Razorpay SDK
+    const razorpay = new Razorpay({
+      key_id: keyId,
+      key_secret: keySecret
+    });
 
-    let paymentSessionId = "";
-    
-    // Call Cashfree API if keys are provided
-    if (appId && secretKey && !secretKey.includes("PLACEHOLDER")) {
-      const response = await fetch(cashfreeUrl, {
-        method: "POST",
-        headers: {
-          "x-client-id": appId,
-          "x-client-secret": secretKey,
-          "x-api-version": "2023-08-01",
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          order_amount: numericAmount,
-          order_currency: "INR",
-          order_id: orderId,
-          customer_details: {
-            customer_id: customerId,
-            customer_name: name,
-            customer_email: email,
-            customer_phone: phone
-          },
-          order_meta: {
-            return_url: `${baseUrl}/pay/verify?order_id={order_id}`
-          }
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error("Cashfree Order creation failed:", errorData);
-        return NextResponse.json(
-          { error: errorData.message || "Failed to create order on Cashfree" },
-          { status: 500 }
-        );
-      }
-
-      const orderData = await response.json();
-      paymentSessionId = orderData.payment_session_id;
-    } else {
-      // Mock paymentSessionId for local testing if credentials are not configured yet
-      console.warn("Cashfree keys are not configured or contain placeholders. Running in local mock mode.");
-      paymentSessionId = `mock_session_${Date.now()}`;
+    // Create Razorpay Order
+    let orderId = "";
+    try {
+      const orderOptions = {
+        amount: amountPaise,
+        currency: "INR",
+        receipt: `rcpt_${Date.now()}_${Math.floor(100 + Math.random() * 900)}`
+      };
+      
+      const order = await razorpay.orders.create(orderOptions);
+      orderId = order.id;
+    } catch (rzpError) {
+      console.error("Razorpay order creation call failed:", rzpError);
+      return NextResponse.json(
+        { error: rzpError.message || "Failed to create order on payment gateway" },
+        { status: 500 }
+      );
     }
 
     // Save payment details to database
@@ -94,7 +77,7 @@ export async function POST(request) {
       amount: numericAmount,
       purpose,
       status: "PENDING",
-      paymentSessionId,
+      paymentSessionId: orderId, // Retain compatibility with existing DB columns
       createdAt: new Date().toLocaleString(),
       updatedAt: null
     };
@@ -104,9 +87,8 @@ export async function POST(request) {
     return NextResponse.json({
       success: true,
       orderId,
-      paymentSessionId,
-      env: env === "production" ? "production" : "sandbox",
-      isMock: !appId || !secretKey || secretKey.includes("PLACEHOLDER")
+      amount: amountPaise,
+      currency: "INR"
     });
   } catch (error) {
     console.error("Payment order creation endpoint error:", error);
