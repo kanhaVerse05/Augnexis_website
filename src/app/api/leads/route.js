@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readLeads, writeLeads, assignLead } from "@/lib/db";
+import { readLeads, writeLeads, assignLead, updateLeadStatus, createCrmLead, bulkAssignLeads } from "@/lib/db";
 import { verifyAuth } from "@/lib/auth-helper";
 
 export async function GET(request) {
@@ -27,15 +27,54 @@ export async function POST(request) {
     }
 
     const body = await request.json();
-    const { action, id, assignedTo } = body;
+    const { action, id, ids, assignedTo, status, lead } = body;
 
     if (action === "assign") {
       if (!id || assignedTo === undefined) {
         return NextResponse.json({ error: "Missing id or assignedTo username" }, { status: 400 });
       }
-
       await assignLead(id, assignedTo);
       return NextResponse.json({ success: true });
+    }
+
+    if (action === "bulk_assign") {
+      if (!ids || !Array.isArray(ids) || assignedTo === undefined) {
+        return NextResponse.json({ error: "Missing ids array or assignedTo username" }, { status: 400 });
+      }
+      await bulkAssignLeads(ids, assignedTo);
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === "update_status") {
+      if (!id || !status) {
+        return NextResponse.json({ error: "Missing id or status value" }, { status: 400 });
+      }
+      await updateLeadStatus(id, status.toUpperCase());
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === "create") {
+      if (!lead || !lead.name) {
+        return NextResponse.json({ error: "Missing lead payload or lead.name" }, { status: 400 });
+      }
+      
+      const newLead = {
+        id: `lead_manual_${Date.now()}`,
+        name: lead.name,
+        companyName: lead.companyName || "",
+        phone: lead.phone || "",
+        email: lead.email || "",
+        subject: lead.subject || "Manual Lead Entry",
+        message: lead.message || "Manual lead profile created by admin.",
+        createdAt: new Date().toLocaleString(),
+        assignedTo: lead.assignedTo || "",
+        source: lead.source || "manual",
+        status: lead.status || "NEW",
+        metadata: lead.metadata || {}
+      };
+
+      await createCrmLead(newLead);
+      return NextResponse.json({ success: true, lead: newLead });
     }
 
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });

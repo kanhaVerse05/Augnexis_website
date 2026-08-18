@@ -60,6 +60,30 @@ export default function AdminDashboard() {
   const [userSuccess, setUserSuccess] = useState(false);
   const [userError, setUserError] = useState("");
 
+  // CRM Lead Management states
+  const [filterSource, setFilterSource] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [filterAssignee, setFilterAssignee] = useState("all");
+  const [selectedLeadIds, setSelectedLeadIds] = useState([]);
+  const [bulkAssignee, setBulkAssignee] = useState("");
+  const [showAddLead, setShowAddLead] = useState(false);
+  const [showBulkImport, setShowBulkImport] = useState(false);
+  const [showIntegrations, setShowIntegrations] = useState(false);
+  const [importText, setImportText] = useState("");
+  const [importError, setImportError] = useState("");
+  const [importSuccess, setImportSuccess] = useState(false);
+  const [manualLeadForm, setManualLeadForm] = useState({
+    name: "",
+    companyName: "",
+    phone: "",
+    email: "",
+    subject: "Manual Lead Entry",
+    message: "",
+    source: "manual",
+    status: "NEW",
+    assignedTo: ""
+  });
+
   useEffect(() => {
     const token = localStorage.getItem("admin_token");
     if (token) {
@@ -276,6 +300,197 @@ export default function AdminDashboard() {
       }
     } catch (err) {
       alert("Failed to assign lead");
+    }
+  };
+
+  const handleManualLeadCreate = async (e) => {
+    e.preventDefault();
+    if (!manualLeadForm.name) return;
+
+    try {
+      const res = await fetch("/api/leads", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": localStorage.getItem("admin_token")
+        },
+        body: JSON.stringify({
+          action: "create",
+          lead: manualLeadForm
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.lead) {
+        setLeads(prev => [data.lead, ...prev]);
+        setShowAddLead(false);
+        setManualLeadForm({
+          name: "",
+          companyName: "",
+          phone: "",
+          email: "",
+          subject: "Manual Lead Entry",
+          message: "",
+          source: "manual",
+          status: "NEW",
+          assignedTo: ""
+        });
+        alert("Lead created successfully!");
+      } else {
+        alert(data.error || "Failed to create lead.");
+      }
+    } catch (err) {
+      alert("Connection error while creating lead.");
+    }
+  };
+
+  const handleStatusUpdate = async (leadId, newStatus) => {
+    try {
+      const res = await fetch("/api/leads", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": localStorage.getItem("admin_token")
+        },
+        body: JSON.stringify({
+          action: "update_status",
+          id: leadId,
+          status: newStatus
+        })
+      });
+      if (res.ok) {
+        setLeads(prevLeads => prevLeads.map(l => {
+          if (l.id === leadId) {
+            return { ...l, status: newStatus };
+          }
+          return l;
+        }));
+      } else {
+        const err = await res.json();
+        alert(`Error updating status: ${err.error}`);
+      }
+    } catch (err) {
+      alert("Failed to update lead status");
+    }
+  };
+
+  const handleBulkAssign = async () => {
+    if (selectedLeadIds.length === 0 || !bulkAssignee) {
+      alert("Please select leads and an assignee first.");
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/leads", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": localStorage.getItem("admin_token")
+        },
+        body: JSON.stringify({
+          action: "bulk_assign",
+          ids: selectedLeadIds,
+          assignedTo: bulkAssignee
+        })
+      });
+      if (res.ok) {
+        setLeads(prevLeads => prevLeads.map(l => {
+          if (selectedLeadIds.includes(l.id)) {
+            return { ...l, assignedTo: bulkAssignee };
+          }
+          return l;
+        }));
+        setSelectedLeadIds([]);
+        setBulkAssignee("");
+        alert("Leads assigned successfully!");
+      } else {
+        const err = await res.json();
+        alert(`Error: ${err.error}`);
+      }
+    } catch (err) {
+      alert("Connection error during assignment.");
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedLeadIds.length === 0) return;
+    if (!confirm(`Are you sure you want to delete ${selectedLeadIds.length} selected leads?`)) return;
+
+    let successCount = 0;
+    for (const id of selectedLeadIds) {
+      try {
+        const res = await fetch(`/api/leads?id=${id}`, {
+          method: "DELETE",
+          headers: { "Authorization": localStorage.getItem("admin_token") }
+        });
+        if (res.ok) {
+          successCount++;
+        }
+      } catch (err) {
+        console.error("Error deleting lead in bulk:", id, err);
+      }
+    }
+
+    setLeads(prev => prev.filter(l => !selectedLeadIds.includes(l.id)));
+    setSelectedLeadIds([]);
+    alert(`Successfully deleted ${successCount} leads.`);
+  };
+
+  const handleBulkImportSubmit = async (e) => {
+    e.preventDefault();
+    setImportError("");
+    setImportSuccess(false);
+
+    if (!importText.trim()) return;
+
+    // Parser supports comma, tab, or newline separated formats
+    // Format: Name, Company, Email, Phone, Message
+    const lines = importText.split("\n");
+    let addedCount = 0;
+
+    for (const line of lines) {
+      const parts = line.split(",").map(p => p.trim());
+      if (parts.length > 0 && parts[0]) {
+        const payload = {
+          name: parts[0],
+          companyName: parts[1] || "",
+          email: parts[2] || "",
+          phone: parts[3] || "",
+          message: parts[4] || "Imported from CSV list.",
+          source: "manual",
+          status: "NEW",
+          assignedTo: ""
+        };
+
+        try {
+          const res = await fetch("/api/leads", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": localStorage.getItem("admin_token")
+            },
+            body: JSON.stringify({
+              action: "create",
+              lead: payload
+            })
+          });
+          const data = await res.json();
+          if (res.ok && data.lead) {
+            setLeads(prev => [data.lead, ...prev]);
+            addedCount++;
+          }
+        } catch (err) {
+          console.error("Error importing row:", line, err);
+        }
+      }
+    }
+
+    if (addedCount > 0) {
+      setImportSuccess(true);
+      setImportText("");
+      setTimeout(() => setShowBulkImport(false), 2000);
+      alert(`Imported ${addedCount} leads successfully!`);
+    } else {
+      setImportError("No valid leads parsed. Format: Name, Company, Email, Phone, Notes");
     }
   };
 
@@ -529,99 +744,548 @@ export default function AdminDashboard() {
           )}
         </div>
 
-        {/* Section: Leads */}
+        {/* Section: Leads (Advanced CRM Lead Management) */}
         {activeSection === "leads" && (
           <div>
-            <h2 style={{ fontSize: "1.5rem", color: "var(--color-blue-deep)", marginBottom: "1.25rem", fontWeight: "700" }}>Recent Leads & Inquiries</h2>
+            {/* Page Title & Controls */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem", marginBottom: "2rem" }}>
+              <div>
+                <h1 style={{ fontSize: "1.8rem", color: "var(--color-blue-deep)", fontWeight: "800", margin: "0" }}>Unified CRM Lead Manager</h1>
+                <p style={{ color: "var(--color-text-secondary)", fontSize: "0.85rem", margin: "0" }}>
+                  Manage, assign, and qualify inquiries from Web forms, Meta Ads, Google Ads, and AI Lead Hunter.
+                </p>
+              </div>
+
+              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                <button
+                  onClick={() => {
+                    setShowAddLead(!showAddLead);
+                    setShowBulkImport(false);
+                    setShowIntegrations(false);
+                  }}
+                  className="btn btn-primary"
+                  style={{ fontSize: "0.85rem", display: "flex", alignItems: "center", gap: "6px", padding: "0.5rem 1rem" }}
+                >
+                  <PlusCircle size={16} /> Add Lead Manually
+                </button>
+                <button
+                  onClick={() => {
+                    setShowBulkImport(!showBulkImport);
+                    setShowAddLead(false);
+                    setShowIntegrations(false);
+                  }}
+                  className="btn btn-secondary"
+                  style={{ fontSize: "0.85rem", display: "flex", alignItems: "center", gap: "6px", padding: "0.5rem 1rem" }}
+                >
+                  <UserPlus size={16} /> Bulk Import
+                </button>
+                <button
+                  onClick={() => {
+                    setShowIntegrations(!showIntegrations);
+                    setShowAddLead(false);
+                    setShowBulkImport(false);
+                  }}
+                  className="btn btn-secondary"
+                  style={{ fontSize: "0.85rem", display: "flex", alignItems: "center", gap: "6px", padding: "0.5rem 1rem" }}
+                >
+                  <Settings size={16} /> Webhook API
+                </button>
+              </div>
+            </div>
+
+            {/* Integrations Setup Guide Panel */}
+            {showIntegrations && (
+              <div className="glass-card" style={{ padding: "2rem", marginBottom: "2rem", borderLeft: "4px solid var(--color-blue-secondary)" }}>
+                <h3 style={{ fontSize: "1.1rem", color: "var(--color-blue-deep)", fontWeight: "700", marginBottom: "0.75rem" }}>
+                  Google & Meta Webhook Integrations
+                </h3>
+                <p style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", lineHeight: "1.5", marginBottom: "1.25rem" }}>
+                  Connect your live Facebook/Instagram Lead Ads campaigns and Google Ads Lead Extensions to receive leads instantly on this dashboard.
+                </p>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1.5rem" }}>
+                  <div style={{ backgroundColor: "#F7FAFD", padding: "1.25rem", borderRadius: "8px", border: "1px solid var(--color-border)" }}>
+                    <span style={{ fontSize: "0.75rem", fontWeight: "700", color: "#e1306c", textTransform: "uppercase", display: "block", marginBottom: "0.5rem" }}>
+                      Meta Webhook Endpoint
+                    </span>
+                    <code style={{ fontSize: "0.8rem", wordBreak: "break-all", display: "block", backgroundColor: "#fff", padding: "6px", borderRadius: "4px", border: "1px solid var(--color-border)" }}>
+                      {window.location.origin}/api/leads/webhook/meta
+                    </code>
+                    <p style={{ fontSize: "0.75rem", color: "var(--color-text-muted)", marginTop: "6px", marginBottom: "0" }}>
+                      Verify Token: <strong style={{ color: "var(--color-blue-deep)" }}>augnexis_meta_token</strong>
+                    </p>
+                  </div>
+
+                  <div style={{ backgroundColor: "#F7FAFD", padding: "1.25rem", borderRadius: "8px", border: "1px solid var(--color-border)" }}>
+                    <span style={{ fontSize: "0.75rem", fontWeight: "700", color: "#4285f4", textTransform: "uppercase", display: "block", marginBottom: "0.5rem" }}>
+                      Google Webhook Endpoint
+                    </span>
+                    <code style={{ fontSize: "0.8rem", wordBreak: "break-all", display: "block", backgroundColor: "#fff", padding: "6px", borderRadius: "4px", border: "1px solid var(--color-border)" }}>
+                      {window.location.origin}/api/leads/webhook/google
+                    </code>
+                    <p style={{ fontSize: "0.75rem", color: "var(--color-text-muted)", marginTop: "6px", marginBottom: "0" }}>
+                      Supports standard Google Lead Form webhook payloads.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Manual Lead Form */}
+            {showAddLead && (
+              <div className="glass-card" style={{ padding: "2rem", marginBottom: "2rem" }}>
+                <h3 style={{ fontSize: "1.2rem", color: "var(--color-blue-deep)", fontWeight: "700", marginBottom: "1rem" }}>
+                  Create New Client Lead
+                </h3>
+                <form onSubmit={handleManualLeadCreate} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "1rem" }}>
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: "0.8rem" }}>Name *</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={manualLeadForm.name}
+                      onChange={(e) => setManualLeadForm({ ...manualLeadForm, name: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: "0.8rem" }}>Company Name</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={manualLeadForm.companyName}
+                      onChange={(e) => setManualLeadForm({ ...manualLeadForm, companyName: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: "0.8rem" }}>Phone Number</label>
+                    <input
+                      type="tel"
+                      className="form-input"
+                      value={manualLeadForm.phone}
+                      onChange={(e) => setManualLeadForm({ ...manualLeadForm, phone: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: "0.8rem" }}>Email Address</label>
+                    <input
+                      type="email"
+                      className="form-input"
+                      value={manualLeadForm.email}
+                      onChange={(e) => setManualLeadForm({ ...manualLeadForm, email: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: "0.8rem" }}>Lead Source</label>
+                    <select
+                      className="form-input"
+                      value={manualLeadForm.source}
+                      onChange={(e) => setManualLeadForm({ ...manualLeadForm, source: e.target.value })}
+                    >
+                      <option value="manual">Manual Entry</option>
+                      <option value="meta_ads">Meta Ads Campaign</option>
+                      <option value="google_ads">Google Ads Campaign</option>
+                      <option value="contact_form">Website Contact Form</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: "0.8rem" }}>Status</label>
+                    <select
+                      className="form-input"
+                      value={manualLeadForm.status}
+                      onChange={(e) => setManualLeadForm({ ...manualLeadForm, status: e.target.value })}
+                    >
+                      <option value="NEW">New Opportunity</option>
+                      <option value="CONTACTED">Contacted / Pitch Sent</option>
+                      <option value="INTERESTED">Interested / Call Booked</option>
+                      <option value="NOT_INTERESTED">Not Interested</option>
+                      <option value="CONVERTED">Converted Client</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: "0.8rem" }}>Assign To Agent</label>
+                    <select
+                      className="form-input"
+                      value={manualLeadForm.assignedTo}
+                      onChange={(e) => setManualLeadForm({ ...manualLeadForm, assignedTo: e.target.value })}
+                    >
+                      <option value="">Unassigned</option>
+                      {users.map(u => (
+                        <option key={u.id} value={u.username}>{u.username}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group" style={{ gridColumn: "span 1 / -1" }}>
+                    <label className="form-label" style={{ fontSize: "0.8rem" }}>Subject / Interest</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={manualLeadForm.subject}
+                      onChange={(e) => setManualLeadForm({ ...manualLeadForm, subject: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-group" style={{ gridColumn: "span 1 / -1" }}>
+                    <label className="form-label" style={{ fontSize: "0.8rem" }}>Message / CRM Notes</label>
+                    <textarea
+                      className="form-input"
+                      rows={3}
+                      style={{ height: "auto" }}
+                      value={manualLeadForm.message}
+                      onChange={(e) => setManualLeadForm({ ...manualLeadForm, message: e.target.value })}
+                    />
+                  </div>
+                  <div style={{ gridColumn: "span 1 / -1", display: "flex", gap: "10px", marginTop: "1rem" }}>
+                    <button type="submit" className="btn btn-primary">Save Lead</button>
+                    <button type="button" onClick={() => setShowAddLead(false)} className="btn btn-secondary">Cancel</button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* Bulk Import leads block */}
+            {showBulkImport && (
+              <div className="glass-card" style={{ padding: "2rem", marginBottom: "2rem" }}>
+                <h3 style={{ fontSize: "1.2rem", color: "var(--color-blue-deep)", fontWeight: "700", marginBottom: "0.5rem" }}>
+                  Bulk Copy-Paste Importer
+                </h3>
+                <p style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
+                  Paste CSV lines. Format: **Name, Company, Email, Phone, Description** (One lead per line).
+                </p>
+                <form onSubmit={handleBulkImportSubmit}>
+                  <textarea
+                    className="form-input"
+                    rows={4}
+                    style={{ height: "auto", fontFamily: "monospace", fontSize: "0.8rem" }}
+                    placeholder="Vijay Sharma, Sharma Steel Ltd, vijay@sharmasteel.com, +919999999999, Needs custom ERP dashboard"
+                    value={importText}
+                    onChange={(e) => setImportText(e.target.value)}
+                  />
+                  <div style={{ display: "flex", gap: "10px", marginTop: "1rem" }}>
+                    <button type="submit" className="btn btn-primary">Start Importing</button>
+                    <button type="button" onClick={() => setShowBulkImport(false)} className="btn btn-secondary">Cancel</button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* Dashboard Filters & Bulk Operations bar */}
+            <div className="glass-card" style={{ padding: "1.25rem 2rem", marginBottom: "1.5rem" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1.5rem" }}>
+                
+                {/* Filters selection */}
+                <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <span style={{ fontSize: "0.75rem", fontWeight: "700", color: "var(--color-text-muted)" }}>Source</span>
+                    <select
+                      value={filterSource}
+                      onChange={(e) => setFilterSource(e.target.value)}
+                      style={{ padding: "6px 12px", borderRadius: "6px", border: "1px solid var(--color-border)", fontSize: "0.85rem" }}
+                    >
+                      <option value="all">All Sources</option>
+                      <option value="contact_form">Website Forms</option>
+                      <option value="lead_hunter">AI Lead Hunter</option>
+                      <option value="meta_ads">Meta Ads (FB/IG)</option>
+                      <option value="google_ads">Google Ads</option>
+                      <option value="manual">Manual Imports</option>
+                    </select>
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <span style={{ fontSize: "0.75rem", fontWeight: "700", color: "var(--color-text-muted)" }}>Status</span>
+                    <select
+                      value={filterStatus}
+                      onChange={(e) => setFilterStatus(e.target.value)}
+                      style={{ padding: "6px 12px", borderRadius: "6px", border: "1px solid var(--color-border)", fontSize: "0.85rem" }}
+                    >
+                      <option value="all">All Statuses</option>
+                      <option value="NEW">New</option>
+                      <option value="CONTACTED">Contacted</option>
+                      <option value="INTERESTED">Interested</option>
+                      <option value="NOT_INTERESTED">Not Interested</option>
+                      <option value="CONVERTED">Converted</option>
+                    </select>
+                  </div>
+
+                  {userRole === "SUPER_ADMIN" && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                      <span style={{ fontSize: "0.75rem", fontWeight: "700", color: "var(--color-text-muted)" }}>Assignee</span>
+                      <select
+                        value={filterAssignee}
+                        onChange={(e) => setFilterAssignee(e.target.value)}
+                        style={{ padding: "6px 12px", borderRadius: "6px", border: "1px solid var(--color-border)", fontSize: "0.85rem" }}
+                      >
+                        <option value="all">All Assignees</option>
+                        <option value="unassigned">Unassigned</option>
+                        {users.map(u => (
+                          <option key={u.id} value={u.username}>{u.username}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                {/* Bulk operations select options */}
+                {userRole === "SUPER_ADMIN" && selectedLeadIds.length > 0 && (
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px", backgroundColor: "#eff6ff", padding: "8px 16px", borderRadius: "8px", border: "1px dashed var(--color-blue-secondary)" }}>
+                    <span style={{ fontSize: "0.85rem", fontWeight: "700", color: "var(--color-blue-deep)" }}>
+                      {selectedLeadIds.length} Selected
+                    </span>
+                    <select
+                      value={bulkAssignee}
+                      onChange={(e) => setBulkAssignee(e.target.value)}
+                      style={{ padding: "4px 8px", borderRadius: "4px", fontSize: "0.8rem", border: "1px solid var(--color-border)" }}
+                    >
+                      <option value="">Choose Agent...</option>
+                      {users.map(u => (
+                        <option key={u.id} value={u.username}>{u.username}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={handleBulkAssign}
+                      className="btn btn-primary"
+                      style={{ padding: "4px 10px", fontSize: "0.8rem" }}
+                    >
+                      Assign
+                    </button>
+                    <button
+                      onClick={handleBulkDelete}
+                      className="btn btn-secondary"
+                      style={{ padding: "4px 10px", fontSize: "0.8rem", color: "#ef4444", borderColor: "#ef4444" }}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                )}
+
+              </div>
+            </div>
+
+            {/* Leads Listing Grid */}
             {leadsLoading ? (
               <p style={{ color: "var(--color-text-secondary)" }}>Loading leads...</p>
-            ) : leads.length === 0 ? (
+            ) : leads.filter(l => {
+              const matchSrc = filterSource === "all" || l.source === filterSource;
+              const matchStat = filterStatus === "all" || l.status === filterStatus;
+              let matchAss = true;
+              if (filterAssignee === "unassigned") matchAss = !l.assignedTo;
+              else if (filterAssignee !== "all") matchAss = l.assignedTo === filterAssignee;
+              return matchSrc && matchStat && matchAss;
+            }).length === 0 ? (
               <div className="glass-card" style={{ padding: "3rem", textAlign: "center" }}>
-                <p style={{ color: "var(--color-text-secondary)" }}>No client inquiries recorded yet.</p>
+                <p style={{ color: "var(--color-text-secondary)", margin: "0" }}>No leads match the active filters.</p>
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-                {leads.map((lead) => (
-                  <div key={lead.id} className="glass-card" style={{ padding: "2rem" }}>
-                    <div style={{ display: "flex", justifyContent: "between", alignItems: "start", flexWrap: "wrap", gap: "1rem", borderBottom: "1px solid var(--color-border)", paddingBottom: "1rem", marginBottom: "1rem" }}>
-                      <div>
-                        <h3 style={{ fontSize: "1.25rem", color: "var(--color-blue-deep)", fontWeight: "700" }}>{lead.name}</h3>
-                        <p style={{ fontSize: "0.85rem", color: "var(--color-text-muted)", marginTop: "0.25rem" }}>
-                          Subject: <strong style={{ color: "var(--color-blue-deep)" }}>{lead.subject}</strong>
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => handleDeleteLead(lead.id)}
-                        style={{
-                          marginLeft: "auto",
-                          backgroundColor: "transparent",
-                          border: "none",
-                          color: "#ef4444",
-                          cursor: "pointer",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "0.25rem",
-                          fontSize: "0.85rem",
-                          fontWeight: "600"
-                        }}
-                      >
-                        <Trash2 size={16} /> Delete Lead
-                      </button>
-                    </div>
+                {leads
+                  .filter(l => {
+                    const matchSrc = filterSource === "all" || l.source === filterSource;
+                    const matchStat = filterStatus === "all" || l.status === filterStatus;
+                    let matchAss = true;
+                    if (filterAssignee === "unassigned") matchAss = !l.assignedTo;
+                    else if (filterAssignee !== "all") matchAss = l.assignedTo === filterAssignee;
+                    return matchSrc && matchStat && matchAss;
+                  })
+                  .map((lead) => {
+                    const isSelected = selectedLeadIds.includes(lead.id);
 
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "1rem", marginBottom: "1rem", fontSize: "0.9rem" }}>
-                      <p style={{ color: "var(--color-text-secondary)", display: "flex", alignItems: "center", gap: "6px", margin: "0" }}>
-                        <Mail size={14} style={{ color: "var(--color-blue-secondary)", flexShrink: 0 }} />
-                        <strong>Email: </strong><a href={`mailto:${lead.email}`} style={{ color: "var(--color-blue-secondary)", wordBreak: "break-all" }}>{lead.email}</a>
-                      </p>
-                      <p style={{ color: "var(--color-text-secondary)", display: "flex", alignItems: "center", gap: "6px", margin: "0" }}>
-                        <Phone size={14} style={{ color: "var(--color-blue-secondary)", flexShrink: 0 }} />
-                        <strong>Phone: </strong><a href={`tel:${lead.phone}`} style={{ color: "var(--color-blue-secondary)" }}>{lead.phone}</a>
-                      </p>
-                      <p style={{ color: "var(--color-text-secondary)", display: "flex", alignItems: "center", gap: "6px", margin: "0" }}>
-                        <Clock size={14} style={{ color: "var(--color-blue-secondary)", flexShrink: 0 }} />
-                        <strong>Received: </strong>{lead.createdAt}
-                      </p>
-                      <div style={{ color: "var(--color-text-secondary)", display: "flex", alignItems: "center", gap: "6px", margin: "0" }}>
-                        <User size={14} style={{ color: "var(--color-blue-secondary)", flexShrink: 0 }} />
-                        <strong>Assigned To: </strong>
-                        {userRole === "SUPER_ADMIN" ? (
-                          <select
-                            value={lead.assignedTo || ""}
-                            onChange={(e) => handleAssignLead(lead.id, e.target.value)}
-                            style={{
-                              padding: "2px 6px",
-                              borderRadius: "4px",
-                              border: "1px solid var(--color-border)",
-                              fontSize: "0.8rem",
-                              backgroundColor: "#fff",
-                              color: "var(--color-text-secondary)",
-                              marginLeft: "4px"
-                            }}
-                          >
-                            <option value="">Unassigned</option>
-                            {users.map(u => (
-                              <option key={u.id} value={u.username}>{u.username}</option>
-                            ))}
-                          </select>
-                        ) : (
-                          <span className="badge bg-blue-100 text-blue-800" style={{ padding: "2px 6px", borderRadius: "4px", fontSize: "11px", fontWeight: "600", marginLeft: "4px" }}>
-                            {lead.assignedTo || "Unassigned"}
-                          </span>
+                    // Source styling badges
+                    let sourceText = "Web Inquiry";
+                    let sourceClass = "bg-blue-100 text-blue-700";
+                    if (lead.source === "lead_hunter") {
+                      sourceText = "AI Hunter";
+                      sourceClass = "bg-purple-100 text-purple-700";
+                    } else if (lead.source === "meta_ads") {
+                      sourceText = "Meta Ads";
+                      sourceClass = "bg-emerald-100 text-emerald-700";
+                    } else if (lead.source === "google_ads") {
+                      sourceText = "Google Ads";
+                      sourceClass = "bg-amber-100 text-amber-700";
+                    } else if (lead.source === "manual") {
+                      sourceText = "Manual Entry";
+                      sourceClass = "bg-slate-100 text-slate-700";
+                    }
+
+                    // Status classes
+                    const statusClass = 
+                      lead.status === "CONVERTED" ? "bg-green-100 text-green-700" :
+                      lead.status === "INTERESTED" ? "bg-cyan-100 text-cyan-700" :
+                      lead.status === "CONTACTED" ? "bg-blue-100 text-blue-700" :
+                      lead.status === "NOT_INTERESTED" ? "bg-red-100 text-red-700" :
+                      "bg-slate-100 text-slate-700";
+
+                    return (
+                      <div key={lead.id} className="glass-card" style={{ padding: "2rem", border: isSelected ? "1px solid var(--color-blue-secondary)" : "1px solid var(--color-border)" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", flexWrap: "wrap", gap: "1rem", borderBottom: "1px solid var(--color-border)", paddingBottom: "1rem", marginBottom: "1rem" }}>
+                          
+                          {/* Left: Checkbox & Name */}
+                          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                            {userRole === "SUPER_ADMIN" && (
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedLeadIds([...selectedLeadIds, lead.id]);
+                                  } else {
+                                    setSelectedLeadIds(selectedLeadIds.filter(id => id !== lead.id));
+                                  }
+                                }}
+                                style={{ width: "16px", height: "16px", cursor: "pointer" }}
+                              />
+                            )}
+                            <div>
+                              <h3 style={{ fontSize: "1.25rem", color: "var(--color-blue-deep)", fontWeight: "700", display: "inline-flex", alignItems: "center", gap: "8px" }}>
+                                {lead.name}
+                                {lead.companyName && <span style={{ fontSize: "0.85rem", color: "var(--color-text-muted)", fontWeight: "400" }}>({lead.companyName})</span>}
+                              </h3>
+                              <div style={{ display: "flex", gap: "8px", marginTop: "4px" }}>
+                                <span className={`badge ${sourceClass}`} style={{ fontSize: "10px", padding: "2px 6px", borderRadius: "4px", fontWeight: "700" }}>
+                                  {sourceText}
+                                </span>
+                                <span className={`badge ${statusClass}`} style={{ fontSize: "10px", padding: "2px 6px", borderRadius: "4px", fontWeight: "700" }}>
+                                  {lead.status}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Right: Actions */}
+                          <div style={{ display: "flex", alignItems: "center", gap: "12px", marginLeft: "auto" }}>
+                            {/* Status Change Dropdown */}
+                            <select
+                              value={lead.status || "NEW"}
+                              onChange={(e) => handleStatusUpdate(lead.id, e.target.value)}
+                              style={{
+                                padding: "4px 8px",
+                                borderRadius: "4px",
+                                border: "1px solid var(--color-border)",
+                                fontSize: "0.8rem",
+                                backgroundColor: "#fff",
+                                color: "var(--color-text-secondary)"
+                              }}
+                            >
+                              <option value="NEW">New</option>
+                              <option value="CONTACTED">Contacted</option>
+                              <option value="INTERESTED">Interested</option>
+                              <option value="NOT_INTERESTED">Not Interested</option>
+                              <option value="CONVERTED">Converted</option>
+                            </select>
+
+                            {/* Delete single button */}
+                            {userRole === "SUPER_ADMIN" && (
+                              <button
+                                onClick={() => handleDeleteLead(lead.id)}
+                                style={{
+                                  backgroundColor: "transparent",
+                                  border: "none",
+                                  color: "#ef4444",
+                                  cursor: "pointer",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "0.25rem",
+                                  fontSize: "0.85rem",
+                                  fontWeight: "600"
+                                }}
+                              >
+                                <Trash2 size={16} /> Delete
+                              </button>
+                            )}
+                          </div>
+
+                        </div>
+
+                        {/* Middle info grid */}
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "1rem", marginBottom: "1rem", fontSize: "0.9rem" }}>
+                          {lead.email && (
+                            <p style={{ color: "var(--color-text-secondary)", display: "flex", alignItems: "center", gap: "6px", margin: "0" }}>
+                              <Mail size={14} style={{ color: "var(--color-blue-secondary)", flexShrink: 0 }} />
+                              <strong>Email: </strong><a href={`mailto:${lead.email}`} style={{ color: "var(--color-blue-secondary)", wordBreak: "break-all" }}>{lead.email}</a>
+                            </p>
+                          )}
+                          {lead.phone && (
+                            <p style={{ color: "var(--color-text-secondary)", display: "flex", alignItems: "center", gap: "6px", margin: "0" }}>
+                              <Phone size={14} style={{ color: "var(--color-blue-secondary)", flexShrink: 0 }} />
+                              <strong>Phone: </strong><a href={`tel:${lead.phone}`} style={{ color: "var(--color-blue-secondary)" }}>{lead.phone}</a>
+                            </p>
+                          )}
+                          <p style={{ color: "var(--color-text-secondary)", display: "flex", alignItems: "center", gap: "6px", margin: "0" }}>
+                            <Clock size={14} style={{ color: "var(--color-blue-secondary)", flexShrink: 0 }} />
+                            <strong>Date Received: </strong>{lead.createdAt}
+                          </p>
+                          <div style={{ color: "var(--color-text-secondary)", display: "flex", alignItems: "center", gap: "6px", margin: "0" }}>
+                            <User size={14} style={{ color: "var(--color-blue-secondary)", flexShrink: 0 }} />
+                            <strong>Assigned To: </strong>
+                            {userRole === "SUPER_ADMIN" ? (
+                              <select
+                                value={lead.assignedTo || ""}
+                                onChange={(e) => handleAssignLead(lead.id, e.target.value)}
+                                style={{
+                                  padding: "2px 6px",
+                                  borderRadius: "4px",
+                                  border: "1px solid var(--color-border)",
+                                  fontSize: "0.8rem",
+                                  backgroundColor: "#fff",
+                                  color: "var(--color-text-secondary)",
+                                  marginLeft: "4px"
+                                }}
+                              >
+                                <option value="">Unassigned</option>
+                                {users.map(u => (
+                                  <option key={u.id} value={u.username}>{u.username}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <span className="badge bg-blue-100 text-blue-800" style={{ padding: "2px 6px", borderRadius: "4px", fontSize: "11px", fontWeight: "600", marginLeft: "4px" }}>
+                                {lead.assignedTo || "Unassigned"}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Subject & message details */}
+                        <div style={{ backgroundColor: "#F7FAFD", padding: "1.25rem", borderRadius: "8px", border: "1px solid var(--color-border)", marginBottom: "1rem" }}>
+                          <h4 style={{ fontSize: "0.85rem", color: "var(--color-blue-deep)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.5rem", fontWeight: "700" }}>
+                            Subject: {lead.subject}
+                          </h4>
+                          <p style={{ color: "var(--color-text-secondary)", fontSize: "0.9rem", lineHeight: "1.6", whiteSpace: "pre-line", margin: "0" }}>
+                            {lead.message}
+                          </p>
+                        </div>
+
+                        {/* Metadata / AI Insights section (For lead hunter or ad data) */}
+                        {lead.metadata && (lead.metadata.placeId || lead.metadata.campaign) && (
+                          <div style={{ backgroundColor: "#faf5ff", padding: "1rem", borderRadius: "8px", border: "1px solid #f3e8ff", fontSize: "0.85rem", color: "#581c87" }}>
+                            <span style={{ fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.05em", fontSize: "0.75rem", display: "block", marginBottom: "0.5rem", color: "#6b21a8" }}>
+                              ⚙ Extra Metadata & Ad Insights
+                            </span>
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "10px" }}>
+                              {lead.metadata.website && (
+                                <div>
+                                  <strong>Website:</strong>{" "}
+                                  <a href={lead.metadata.website} target="_blank" rel="noreferrer" style={{ color: "var(--color-blue-secondary)" }}>
+                                    {lead.metadata.website}
+                                  </a>
+                                </div>
+                              )}
+                              {lead.metadata.rating !== undefined && (
+                                <div><strong>Business Rating:</strong> ⭐ {lead.metadata.rating} / 5</div>
+                              )}
+                              {lead.metadata.score !== undefined && (
+                                <div><strong>AI Match Score:</strong> {lead.metadata.score} / 100</div>
+                              )}
+                              {lead.metadata.campaign && (
+                                <div><strong>Ad Campaign:</strong> {lead.metadata.campaign}</div>
+                              )}
+                              {lead.metadata.adId && (
+                                <div><strong>Ad ID:</strong> {lead.metadata.adId}</div>
+                              )}
+                            </div>
+                          </div>
                         )}
-                      </div>
-                    </div>
 
-                    <div style={{ backgroundColor: "#F7FAFD", padding: "1.25rem", borderRadius: "8px", border: "1px solid var(--color-border)" }}>
-                      <h4 style={{ fontSize: "0.85rem", color: "var(--color-blue-deep)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.5rem", fontWeight: "700" }}>
-                        Project Description:
-                      </h4>
-                      <p style={{ color: "var(--color-text-secondary)", fontSize: "0.9rem", lineHeight: "1.6", whiteSpace: "pre-line" }}>
-                        {lead.message}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+                      </div>
+                    );
+                  })}
               </div>
             )}
           </div>

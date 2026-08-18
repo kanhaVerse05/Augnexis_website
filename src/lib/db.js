@@ -97,17 +97,25 @@ async function initPG() {
       CREATE TABLE IF NOT EXISTS leads (
         id VARCHAR(50) PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
-        phone VARCHAR(50) NOT NULL,
-        email VARCHAR(255) NOT NULL,
-        subject VARCHAR(255) NOT NULL,
-        message TEXT NOT NULL,
+        phone VARCHAR(50),
+        email VARCHAR(255),
+        subject VARCHAR(255),
+        message TEXT,
         created_at VARCHAR(100) NOT NULL,
-        assigned_to VARCHAR(100)
+        assigned_to VARCHAR(100),
+        source VARCHAR(50) NOT NULL DEFAULT 'contact_form',
+        status VARCHAR(50) NOT NULL DEFAULT 'NEW',
+        company_name VARCHAR(255),
+        metadata JSONB
       );
     `);
 
-    // Dynamically ensure assigned_to exists in leads
+    // Dynamically ensure columns exist in leads table
     await client.query("ALTER TABLE leads ADD COLUMN IF NOT EXISTS assigned_to VARCHAR(100);");
+    await client.query("ALTER TABLE leads ADD COLUMN IF NOT EXISTS source VARCHAR(50) DEFAULT 'contact_form';");
+    await client.query("ALTER TABLE leads ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'NEW';");
+    await client.query("ALTER TABLE leads ADD COLUMN IF NOT EXISTS company_name VARCHAR(255);");
+    await client.query("ALTER TABLE leads ADD COLUMN IF NOT EXISTS metadata JSONB;");
 
     // Create users table
     await client.query(`
@@ -128,6 +136,37 @@ async function initPG() {
         "INSERT INTO users (id, username, password, role, permissions, created_at) VALUES ($1, $2, $3, $4, $5, $6)",
         ["user_super_admin", "admin", "admin123", "SUPER_ADMIN", ["leads", "payments", "blogs", "lead_hunter", "users"], new Date().toLocaleString()]
       );
+    }
+
+    // Dynamic Sync hunter leads to crm leads
+    try {
+      await client.query(`
+        INSERT INTO leads (id, name, phone, email, subject, message, created_at, source, status, company_name, metadata)
+        SELECT 
+          hl.id, 
+          hb.name, 
+          COALESCE(hb.phone_number, ''), 
+          '', 
+          CONCAT('AI qualified opportunity: ', hl.opportunity),
+          COALESCE(ha.personalized_pitch, 'Discovered business opportunity.'),
+          hl.first_discovered_at, 
+          'lead_hunter', 
+          hl.status, 
+          hb.name,
+          jsonb_build_object(
+            'placeId', hb.place_id, 
+            'website', hb.website, 
+            'rating', hb.rating, 
+            'score', hl.score,
+            'opportunity', hl.opportunity
+          )
+        FROM hunter_leads hl
+        JOIN hunter_businesses hb ON hl.business_id = hb.id
+        LEFT JOIN hunter_ai_analyses ha ON hb.id = ha.business_id
+        ON CONFLICT (id) DO NOTHING;
+      `);
+    } catch (syncErr) {
+      console.error("PG dynamic hunter lead sync failed:", syncErr);
     }
 
     // Create blogs table
@@ -220,7 +259,57 @@ async function initPG() {
 function readLeadsLocal() {
   initLocalDB();
   const data = fs.readFileSync(LEADS_FILE, "utf-8");
-  return JSON.parse(data || "[]");
+  const mainLeads = JSON.parse(data || "[]");
+
+  // Sync with hunter leads if files exist
+  const hunterLeadsFile = path.join(DATA_DIR, "hunter_leads.json");
+  const hunterBizFile = path.join(DATA_DIR, "hunter_businesses.json");
+  const hunterAnalysesFile = path.join(DATA_DIR, "hunter_ai_analyses.json");
+
+  if (fs.existsSync(hunterLeadsFile) && fs.existsSync(hunterBizFile)) {
+    try {
+      const hl = JSON.parse(fs.readFileSync(hunterLeadsFile, "utf-8") || "[]");
+      const hb = JSON.parse(fs.readFileSync(hunterBizFile, "utf-8") || "[]");
+      const ha = fs.existsSync(hunterAnalysesFile) ? JSON.parse(fs.readFileSync(hunterAnalysesFile, "utf-8") || "[]") : [];
+
+      let updated = false;
+      hl.forEach(lead => {
+        if (!mainLeads.some(ml => ml.id === lead.id)) {
+          const biz = hb.find(x => x.id === lead.business_id) || {};
+          const ana = ha.find(x => x.business_id === lead.business_id) || {};
+          mainLeads.push({
+            id: lead.id,
+            name: biz.name || "Unknown",
+            phone: biz.phone_number || "",
+            email: "",
+            subject: `AI qualified opportunity: ${lead.opportunity}`,
+            message: ana.personalized_pitch || "Discovered business opportunity.",
+            createdAt: lead.first_discovered_at || new Date().toLocaleString(),
+            assignedTo: lead.assigned_to || "",
+            source: "lead_hunter",
+            status: lead.status || "NEW",
+            companyName: biz.name || "",
+            metadata: {
+              placeId: biz.place_id || "",
+              website: biz.website || "",
+              rating: biz.rating || 0,
+              score: lead.score || 0,
+              opportunity: lead.opportunity || ""
+            }
+          });
+          updated = true;
+        }
+      });
+
+      if (updated) {
+        fs.writeFileSync(LEADS_FILE, JSON.stringify(mainLeads, null, 2), "utf-8");
+      }
+    } catch (e) {
+      console.error("Local JSON lead sync failed:", e);
+    }
+  }
+
+  return mainLeads;
 }
 
 function writeLeadsLocal(leads) {
@@ -248,12 +337,16 @@ export async function readLeads() {
       return result.rows.map(row => ({
         id: row.id,
         name: row.name,
-        phone: row.phone,
-        email: row.email,
-        subject: row.subject,
-        message: row.message,
+        phone: row.phone || "",
+        email: row.email || "",
+        subject: row.subject || "",
+        message: row.message || "",
         createdAt: row.created_at,
-        assignedTo: row.assigned_to || ""
+        assignedTo: row.assigned_to || "",
+        source: row.source || "contact_form",
+        status: row.status || "NEW",
+        companyName: row.company_name || "",
+        metadata: row.metadata || {}
       }));
     } catch (err) {
       console.error("Postgres readLeads failed. Falling back to local JSON.", err);
@@ -273,8 +366,21 @@ export async function writeLeads(leads) {
       await client.query("DELETE FROM leads");
       for (const lead of leads) {
         await client.query(
-          "INSERT INTO leads (id, name, phone, email, subject, message, created_at, assigned_to) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
-          [lead.id, lead.name, lead.phone, lead.email, lead.subject, lead.message, lead.createdAt, lead.assignedTo || null]
+          "INSERT INTO leads (id, name, phone, email, subject, message, created_at, assigned_to, source, status, company_name, metadata) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
+          [
+            lead.id,
+            lead.name,
+            lead.phone || null,
+            lead.email || null,
+            lead.subject || null,
+            lead.message || null,
+            lead.createdAt,
+            lead.assignedTo || null,
+            lead.source || "contact_form",
+            lead.status || "NEW",
+            lead.companyName || null,
+            lead.metadata ? JSON.stringify(lead.metadata) : null
+          ]
         );
       }
       await client.query("COMMIT");
@@ -567,4 +673,50 @@ export async function assignLead(leadId, username) {
     leads[index].assignedTo = username;
     await writeLeads(leads);
   }
+}
+
+export async function updateLeadStatus(leadId, status) {
+  if (pool) {
+    try {
+      await initPG();
+      await pool.query("UPDATE leads SET status = $1 WHERE id = $2", [status, leadId]);
+      return;
+    } catch (err) {
+      console.error("PG updateLeadStatus failed, using local JSON fallback:", err);
+    }
+  }
+  
+  const leads = await readLeads();
+  const index = leads.findIndex(l => l.id === leadId);
+  if (index !== -1) {
+    leads[index].status = status;
+    await writeLeads(leads);
+  }
+}
+
+export async function createCrmLead(lead) {
+  const leads = await readLeads();
+  leads.unshift(lead);
+  await writeLeads(leads);
+}
+
+export async function bulkAssignLeads(leadIds, username) {
+  if (pool) {
+    try {
+      await initPG();
+      await pool.query("UPDATE leads SET assigned_to = $1 WHERE id = ANY($2)", [username, leadIds]);
+      return;
+    } catch (err) {
+      console.error("PG bulkAssignLeads failed, using local JSON fallback:", err);
+    }
+  }
+  
+  const leads = await readLeads();
+  leadIds.forEach(id => {
+    const index = leads.findIndex(l => l.id === id);
+    if (index !== -1) {
+      leads[index].assignedTo = username;
+    }
+  });
+  await writeLeads(leads);
 }
