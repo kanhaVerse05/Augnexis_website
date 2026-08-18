@@ -1,0 +1,16 @@
+[
+  {
+    "id": "user_super_admin",
+    "username": "admin",
+    "password": "admin123",
+    "role": "SUPER_ADMIN",
+    "permissions": [
+      "leads",
+      "payments",
+      "blogs",
+      "lead_hunter",
+      "users"
+    ],
+    "createdAt": "8/18/2026, 11:50:18 PM"
+  }
+]

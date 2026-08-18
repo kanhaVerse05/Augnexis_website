@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { readBlogs, writeBlogs } from "@/lib/db";
+import { verifyAuth } from "@/lib/auth-helper";
 
 export async function GET() {
   try {
@@ -12,8 +13,8 @@ export async function GET() {
 
 export async function POST(request) {
   try {
-    const authHeader = request.headers.get("authorization");
-    if (authHeader !== "admin-secret-token") {
+    const auth = await verifyAuth(request, "blogs");
+    if (!auth) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -49,8 +50,8 @@ export async function POST(request) {
 
 export async function DELETE(request) {
   try {
-    const authHeader = request.headers.get("authorization");
-    if (authHeader !== "admin-secret-token") {
+    const auth = await verifyAuth(request, "blogs");
+    if (!auth) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

@@ -33,6 +33,9 @@ export default function LeadHunterDashboard() {
   const [categoryStats, setCategoryStats] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [authorized, setAuthorized] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [users, setUsers] = useState([]);
   
   // Hunt trigger & active logging states
   const [isHunting, setIsHunting] = useState(false);
@@ -57,7 +60,32 @@ export default function LeadHunterDashboard() {
   const [keysMissing, setKeysMissing] = useState(false);
 
   useEffect(() => {
-    fetchDashboardData();
+    const token = localStorage.getItem("admin_token");
+    if (!token) {
+      window.location.href = "/admin";
+      return;
+    }
+
+    const role = localStorage.getItem("admin_role") || "USER";
+    const permissions = JSON.parse(localStorage.getItem("admin_permissions") || "[]");
+
+    if (role !== "SUPER_ADMIN" && !permissions.includes("lead_hunter")) {
+      alert("Access Denied: You do not have permission to access Lead Hunter.");
+      window.location.href = "/admin";
+      return;
+    }
+
+    setAuthorized(true);
+    setIsSuperAdmin(role === "SUPER_ADMIN");
+    
+    fetchDashboardData(token);
+    if (role === "SUPER_ADMIN") {
+      fetchUsers(token);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!authorized) return;
     
     // Set up polling while lead hunt is running
     let interval;
@@ -67,7 +95,7 @@ export default function LeadHunterDashboard() {
       }, 1500);
     }
     return () => clearInterval(interval);
-  }, [isHunting]);
+  }, [isHunting, authorized]);
 
   // Scroll logging terminal to bottom
   useEffect(() => {
@@ -76,10 +104,60 @@ export default function LeadHunterDashboard() {
     }
   }, [logMessages, showTerminal]);
 
-  const fetchDashboardData = async () => {
+  const fetchUsers = async (token) => {
     try {
-      const leadsRes = await fetch("/api/hunter/leads");
-      const hunterRes = await fetch("/api/hunter");
+      const res = await fetch("/api/admin/users", {
+        headers: { "Authorization": token || localStorage.getItem("admin_token") }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setUsers(data);
+      }
+    } catch (e) {
+      console.error("Error fetching users list:", e);
+    }
+  };
+
+  const handleAssignHunterLead = async (leadId, username) => {
+    try {
+      const res = await fetch("/api/hunter/leads", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": localStorage.getItem("admin_token")
+        },
+        body: JSON.stringify({
+          action: "assign",
+          id: leadId,
+          assignedTo: username
+        })
+      });
+      if (res.ok) {
+        // Refresh local leads state
+        setLeads(prev => prev.map(l => {
+          if (l.id === leadId) {
+            return { ...l, assignedTo: username };
+          }
+          return l;
+        }));
+      } else {
+        const err = await res.json();
+        alert(`Error assigning lead: ${err.error}`);
+      }
+    } catch (err) {
+      alert("Failed to assign lead.");
+    }
+  };
+
+  const fetchDashboardData = async (tokenOverride) => {
+    const token = tokenOverride || localStorage.getItem("admin_token");
+    try {
+      const leadsRes = await fetch("/api/hunter/leads", {
+        headers: { "Authorization": token }
+      });
+      const hunterRes = await fetch("/api/hunter", {
+        headers: { "Authorization": token }
+      });
       
       if (leadsRes.ok && hunterRes.ok) {
         const leadData = await leadsRes.json();
@@ -148,7 +226,9 @@ export default function LeadHunterDashboard() {
 
   const pollJobStatus = async () => {
     try {
-      const res = await fetch("/api/hunter");
+      const res = await fetch("/api/hunter", {
+        headers: { "Authorization": localStorage.getItem("admin_token") }
+      });
       if (res.ok) {
         const data = await res.json();
         setLogMessages(data.activeLogs || []);
@@ -178,7 +258,10 @@ export default function LeadHunterDashboard() {
     try {
       const res = await fetch("/api/hunter", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": localStorage.getItem("admin_token")
+        },
         body: JSON.stringify({ action: "trigger" })
       });
       
@@ -199,7 +282,10 @@ export default function LeadHunterDashboard() {
     try {
       await fetch("/api/hunter", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": localStorage.getItem("admin_token")
+        },
         body: JSON.stringify({
           action: "save_settings",
           settings: updatedForm
@@ -219,7 +305,10 @@ export default function LeadHunterDashboard() {
     try {
       const res = await fetch("/api/hunter", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": localStorage.getItem("admin_token")
+        },
         body: JSON.stringify({
           action: "save_settings",
           settings: settingsForm
@@ -510,11 +599,11 @@ export default function LeadHunterDashboard() {
                       <tr style={{ borderBottom: "1px solid var(--color-border)", backgroundColor: "var(--color-bg-alt)", color: "var(--color-text-muted)", fontWeight: "600" }}>
                         <th style={{ padding: "1rem 1.5rem" }}>Business</th>
                         <th style={{ padding: "1rem 1rem" }}>Category</th>
-                        <th style={{ padding: "1rem 1rem" }}>Location</th>
                         <th style={{ padding: "1rem 1rem" }}>Website</th>
                         <th style={{ padding: "1rem 1rem" }}>Opportunity</th>
                         <th style={{ padding: "1rem 1rem", textAlign: "center" }}>Score</th>
                         <th style={{ padding: "1rem 1rem", textAlign: "center" }}>Priority</th>
+                        <th style={{ padding: "1rem 1rem" }}>Assigned To</th>
                         <th style={{ padding: "1rem 1.5rem", textAlign: "right" }}>Action</th>
                       </tr>
                     </thead>
@@ -535,15 +624,10 @@ export default function LeadHunterDashboard() {
                         return (
                           <tr key={lead.id} style={{ borderBottom: "1px solid var(--color-border)", transition: "background-color 0.15s" }} className="hover:bg-slate-50/50">
                             <td style={{ padding: "1rem 1.5rem" }}>
-                              <span style={{ fontWeight: "700", color: "var(--color-blue-deep)" }}>{lead.business?.name}</span>
+                               <span style={{ fontWeight: "700", color: "var(--color-blue-deep)" }}>{lead.business?.name}</span>
                             </td>
                             <td style={{ padding: "1rem 1rem" }}>
                               <span style={{ fontSize: "0.8rem" }}>{lead.business?.categories?.[0] || "Local Business"}</span>
-                            </td>
-                            <td style={{ padding: "1rem 1rem" }}>
-                              <span style={{ fontSize: "0.8rem" }}>
-                                {lead.business?.formattedAddress?.split(",")?.[0] || "Delhi NCR"}
-                              </span>
                             </td>
                             <td style={{ padding: "1rem 1rem" }}>
                               {lead.business?.website ? (
@@ -576,6 +660,30 @@ export default function LeadHunterDashboard() {
                               <span className={`badge ${priorityColor}`} style={{ padding: "4px 8px", borderRadius: "6px", fontWeight: "700", fontSize: "11px", border: "1px solid" }}>
                                 {lead.priority}
                               </span>
+                            </td>
+                            <td style={{ padding: "1rem 1rem" }}>
+                              {isSuperAdmin ? (
+                                <select
+                                  value={lead.assignedTo || ""}
+                                  onChange={(e) => handleAssignHunterLead(lead.id, e.target.value)}
+                                  style={{
+                                    padding: "4px 8px",
+                                    borderRadius: "4px",
+                                    border: "1px solid var(--color-border)",
+                                    fontSize: "0.8rem",
+                                    backgroundColor: "#fff"
+                                  }}
+                                >
+                                  <option value="">Unassigned</option>
+                                  {users.map(u => (
+                                    <option key={u.id} value={u.username}>{u.username}</option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <span className="badge bg-blue-100 text-blue-800" style={{ padding: "4px 8px", borderRadius: "4px", fontSize: "11px", fontWeight: "600" }}>
+                                  {lead.assignedTo || "Unassigned"}
+                                </span>
+                              )}
                             </td>
                             <td style={{ padding: "1rem 1.5rem", textAlign: "right" }}>
                               <Link

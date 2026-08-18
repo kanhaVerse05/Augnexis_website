@@ -41,13 +41,31 @@ export default function LeadDetailPage({ params: paramsPromise }) {
   const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
-    fetchLeadDetails();
+    const token = localStorage.getItem("admin_token");
+    if (!token) {
+      window.location.href = "/admin";
+      return;
+    }
+
+    const role = localStorage.getItem("admin_role") || "USER";
+    const permissions = JSON.parse(localStorage.getItem("admin_permissions") || "[]");
+
+    if (role !== "SUPER_ADMIN" && !permissions.includes("lead_hunter")) {
+      alert("Access Denied: You do not have permission to access Lead Hunter.");
+      window.location.href = "/admin";
+      return;
+    }
+
+    fetchLeadDetails(token);
   }, [leadId]);
 
-  const fetchLeadDetails = async () => {
+  const fetchLeadDetails = async (tokenOverride) => {
     setLoading(true);
+    const token = tokenOverride || localStorage.getItem("admin_token");
     try {
-      const res = await fetch(`/api/hunter/leads?id=${leadId}`);
+      const res = await fetch(`/api/hunter/leads?id=${leadId}`, {
+        headers: { "Authorization": token }
+      });
       if (res.ok) {
         const data = await res.json();
         setLead(data);
@@ -67,7 +85,10 @@ export default function LeadDetailPage({ params: paramsPromise }) {
     try {
       const res = await fetch("/api/hunter/leads", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": localStorage.getItem("admin_token")
+        },
         body: JSON.stringify({
           action: "update_status",
           id: leadId,

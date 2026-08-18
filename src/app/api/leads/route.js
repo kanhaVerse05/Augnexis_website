@@ -1,24 +1,54 @@
 import { NextResponse } from "next/server";
-import { readLeads, writeLeads } from "@/lib/db";
+import { readLeads, writeLeads, assignLead } from "@/lib/db";
+import { verifyAuth } from "@/lib/auth-helper";
 
 export async function GET(request) {
   try {
-    const authHeader = request.headers.get("authorization");
-    if (authHeader !== "admin-secret-token") {
+    const auth = await verifyAuth(request, "leads");
+    if (!auth) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const leads = await readLeads();
+    let leads = await readLeads();
+    if (auth.role !== "SUPER_ADMIN") {
+      leads = leads.filter(l => l.assignedTo === auth.username);
+    }
     return NextResponse.json(leads);
   } catch (error) {
     return NextResponse.json({ error: "Failed to read leads" }, { status: 500 });
   }
 }
 
+export async function POST(request) {
+  try {
+    const auth = await verifyAuth(request, "leads");
+    if (!auth) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { action, id, assignedTo } = body;
+
+    if (action === "assign") {
+      if (!id || assignedTo === undefined) {
+        return NextResponse.json({ error: "Missing id or assignedTo username" }, { status: 400 });
+      }
+
+      await assignLead(id, assignedTo);
+      return NextResponse.json({ success: true });
+    }
+
+    return NextResponse.json({ error: "Unknown action" }, { status: 400 });
+  } catch (error) {
+    console.error("POST Leads API Error:", error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+  }
+}
+
 export async function DELETE(request) {
   try {
-    const authHeader = request.headers.get("authorization");
-    if (authHeader !== "admin-secret-token") {
+    const auth = await verifyAuth(request, "leads");
+    if (!auth) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

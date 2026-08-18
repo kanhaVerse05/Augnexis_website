@@ -6,6 +6,7 @@ const DATA_DIR = path.join(process.cwd(), "data");
 const LEADS_FILE = path.join(DATA_DIR, "leads.json");
 const BLOGS_FILE = path.join(DATA_DIR, "blogs.json");
 const PAYMENTS_FILE = path.join(DATA_DIR, "payments.json");
+const USERS_FILE = path.join(DATA_DIR, "users.json");
 
 // Connection Pool (only if DATABASE_URL is set)
 let pool = null;
@@ -29,6 +30,19 @@ function initLocalDB() {
   }
   if (!fs.existsSync(PAYMENTS_FILE)) {
     fs.writeFileSync(PAYMENTS_FILE, JSON.stringify([], null, 2), "utf-8");
+  }
+  if (!fs.existsSync(USERS_FILE)) {
+    const defaultUsers = [
+      {
+        id: "user_super_admin",
+        username: "admin",
+        password: "admin123",
+        role: "SUPER_ADMIN",
+        permissions: ["leads", "payments", "blogs", "lead_hunter", "users"],
+        createdAt: new Date().toLocaleString()
+      }
+    ];
+    fs.writeFileSync(USERS_FILE, JSON.stringify(defaultUsers, null, 2), "utf-8");
   }
   if (!fs.existsSync(BLOGS_FILE)) {
     const defaultBlogs = [
@@ -87,9 +101,34 @@ async function initPG() {
         email VARCHAR(255) NOT NULL,
         subject VARCHAR(255) NOT NULL,
         message TEXT NOT NULL,
+        created_at VARCHAR(100) NOT NULL,
+        assigned_to VARCHAR(100)
+      );
+    `);
+
+    // Dynamically ensure assigned_to exists in leads
+    await client.query("ALTER TABLE leads ADD COLUMN IF NOT EXISTS assigned_to VARCHAR(100);");
+
+    // Create users table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id VARCHAR(50) PRIMARY KEY,
+        username VARCHAR(100) UNIQUE NOT NULL,
+        password VARCHAR(255) NOT NULL,
+        role VARCHAR(50) NOT NULL,
+        permissions TEXT[],
         created_at VARCHAR(100) NOT NULL
       );
     `);
+
+    // Ensure a default super admin user exists in DB
+    const adminCheck = await client.query("SELECT COUNT(*) FROM users WHERE username = 'admin'");
+    if (parseInt(adminCheck.rows[0].count) === 0) {
+      await client.query(
+        "INSERT INTO users (id, username, password, role, permissions, created_at) VALUES ($1, $2, $3, $4, $5, $6)",
+        ["user_super_admin", "admin", "admin123", "SUPER_ADMIN", ["leads", "payments", "blogs", "lead_hunter", "users"], new Date().toLocaleString()]
+      );
+    }
 
     // Create blogs table
     await client.query(`
@@ -213,7 +252,8 @@ export async function readLeads() {
         email: row.email,
         subject: row.subject,
         message: row.message,
-        createdAt: row.created_at
+        createdAt: row.created_at,
+        assignedTo: row.assigned_to || ""
       }));
     } catch (err) {
       console.error("Postgres readLeads failed. Falling back to local JSON.", err);
@@ -233,8 +273,8 @@ export async function writeLeads(leads) {
       await client.query("DELETE FROM leads");
       for (const lead of leads) {
         await client.query(
-          "INSERT INTO leads (id, name, phone, email, subject, message, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7)",
-          [lead.id, lead.name, lead.phone, lead.email, lead.subject, lead.message, lead.createdAt]
+          "INSERT INTO leads (id, name, phone, email, subject, message, created_at, assigned_to) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+          [lead.id, lead.name, lead.phone, lead.email, lead.subject, lead.message, lead.createdAt, lead.assignedTo || null]
         );
       }
       await client.query("COMMIT");
@@ -430,5 +470,101 @@ export async function updatePaymentStatus(orderId, status) {
     payments[index].status = status;
     payments[index].updatedAt = new Date().toLocaleString();
     writePaymentsLocal(payments);
+  }
+}
+
+// User Helpers (local + PG fallback)
+function readUsersLocal() {
+  initLocalDB();
+  const data = fs.readFileSync(USERS_FILE, "utf-8");
+  return JSON.parse(data || "[]");
+}
+
+function writeUsersLocal(users) {
+  initLocalDB();
+  fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), "utf-8");
+}
+
+export async function readUsers() {
+  if (pool) {
+    try {
+      await initPG();
+      const res = await pool.query("SELECT * FROM users ORDER BY username ASC");
+      return res.rows.map(row => ({
+        id: row.id,
+        username: row.username,
+        password: row.password,
+        role: row.role,
+        permissions: row.permissions || [],
+        createdAt: row.created_at
+      }));
+    } catch (err) {
+      console.error("PG readUsers failed, using local JSON fallback:", err);
+      return readUsersLocal();
+    }
+  }
+  return readUsersLocal();
+}
+
+export async function writeUsers(users) {
+  if (pool) {
+    let client = null;
+    try {
+      await initPG();
+      client = await pool.connect();
+      await client.query("BEGIN");
+      await client.query("DELETE FROM users");
+      for (const user of users) {
+        await client.query(
+          "INSERT INTO users (id, username, password, role, permissions, created_at) VALUES ($1, $2, $3, $4, $5, $6)",
+          [user.id, user.username, user.password, user.role, user.permissions, user.createdAt]
+        );
+      }
+      await client.query("COMMIT");
+      return;
+    } catch (err) {
+      if (client) {
+        try {
+          await client.query("ROLLBACK");
+        } catch (e) {}
+      }
+      console.error("PG writeUsers failed, using local JSON fallback:", err);
+      writeUsersLocal(users);
+    } finally {
+      if (client) client.release();
+    }
+  } else {
+    writeUsersLocal(users);
+  }
+}
+
+export async function createUser(user) {
+  const users = await readUsers();
+  users.push(user);
+  await writeUsers(users);
+}
+
+export async function deleteUser(id) {
+  let users = await readUsers();
+  users = users.filter(u => u.id !== id);
+  await writeUsers(users);
+}
+
+export async function assignLead(leadId, username) {
+  if (pool) {
+    try {
+      await initPG();
+      await pool.query("UPDATE leads SET assigned_to = $1 WHERE id = $2", [username, leadId]);
+      return;
+    } catch (err) {
+      console.error("PG assignLead failed, using local JSON fallback:", err);
+    }
+  }
+  
+  const leads = await readLeads();
+  const index = leads.findIndex(l => l.id === leadId);
+  if (index !== -1) {
+    leads[index].assignedTo = username;
+    await writeLeads(leads);
   }
 }

@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
-import { getLeads, getLeadDetail, updateLeadStatus } from "@/lib/db-hunter";
+import { getLeads, getLeadDetail, updateLeadStatus, assignHunterLead } from "@/lib/db-hunter";
+import { verifyAuth } from "@/lib/auth-helper";
 
 export async function GET(request) {
   try {
+    const auth = await verifyAuth(request, "lead_hunter");
+    if (!auth) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
     
@@ -19,6 +25,10 @@ export async function GET(request) {
     const priority = searchParams.get("priority"); // e.g. "HOT", "WARM", "COLD"
     let leads = await getLeads();
 
+    if (auth.role !== "SUPER_ADMIN") {
+      leads = leads.filter(l => l.assignedTo === auth.username);
+    }
+
     if (priority) {
       leads = leads.filter(l => l.priority?.toUpperCase() === priority.toUpperCase());
     }
@@ -31,8 +41,13 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
+    const auth = await verifyAuth(request, "lead_hunter");
+    if (!auth) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await request.json();
-    const { action, id, status } = body;
+    const { action, id, status, assignedTo } = body;
 
     if (action === "update_status") {
       if (!id || !status) {
@@ -47,6 +62,15 @@ export async function POST(request) {
 
       await updateLeadStatus(id, status.toUpperCase());
       return NextResponse.json({ success: true, message: `Status updated to ${status}` });
+    }
+
+    if (action === "assign") {
+      if (!id || assignedTo === undefined) {
+        return NextResponse.json({ error: "Missing id or assignedTo username" }, { status: 400 });
+      }
+
+      await assignHunterLead(id, assignedTo);
+      return NextResponse.json({ success: true, message: `Lead assigned to ${assignedTo}` });
     }
 
     return NextResponse.json({ error: "Invalid post action code" }, { status: 400 });

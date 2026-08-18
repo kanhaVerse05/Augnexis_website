@@ -85,9 +85,13 @@ async function initPG() {
         status VARCHAR(50) NOT NULL,
         first_discovered_at VARCHAR(100) NOT NULL,
         last_seen_at VARCHAR(100) NOT NULL,
-        last_analyzed_at VARCHAR(100) NOT NULL
+        last_analyzed_at VARCHAR(100) NOT NULL,
+        assigned_to VARCHAR(100)
       );
     `);
+    
+    // Dynamically ensure assigned_to exists in hunter_leads
+    await client.query("ALTER TABLE hunter_leads ADD COLUMN IF NOT EXISTS assigned_to VARCHAR(100);");
     
     // Create hunter_website_audits table
     await client.query(`
@@ -261,7 +265,7 @@ export async function getLeads() {
       const query = `
         SELECT 
           l.id, l.score, l.priority, l.opportunity, l.status, 
-          l.first_discovered_at, l.last_seen_at, l.last_analyzed_at,
+          l.first_discovered_at, l.last_seen_at, l.last_analyzed_at, l.assigned_to,
           b.name as business_name, b.website, b.rating, b.user_ratings_total,
           b.types as categories, b.formatted_address, b.phone_number
         FROM hunter_leads l
@@ -278,6 +282,7 @@ export async function getLeads() {
         firstDiscoveredAt: row.first_discovered_at,
         lastSeenAt: row.last_seen_at,
         lastAnalyzedAt: row.last_analyzed_at,
+        assignedTo: row.assigned_to || "",
         business: {
           name: row.business_name,
           website: row.website,
@@ -308,6 +313,7 @@ export async function getLeads() {
       firstDiscoveredAt: l.first_discovered_at,
       lastSeenAt: l.last_seen_at,
       lastAnalyzedAt: l.last_analyzed_at,
+      assignedTo: l.assigned_to || l.assignedTo || "",
       business: {
         name: b.name || "Unknown",
         website: b.website || null,
@@ -328,7 +334,7 @@ export async function getLeadDetail(leadId) {
       const leadRes = await pool.query(`
         SELECT 
           l.id, l.score, l.priority, l.opportunity, l.status, 
-          l.first_discovered_at, l.last_seen_at, l.last_analyzed_at, l.business_id,
+          l.first_discovered_at, l.last_seen_at, l.last_analyzed_at, l.business_id, l.assigned_to,
           b.name as business_name, b.place_id, b.website, b.rating, b.user_ratings_total,
           b.types as categories, b.formatted_address, b.phone_number,
           b.source_type, b.source_urls
@@ -353,6 +359,7 @@ export async function getLeadDetail(leadId) {
         firstDiscoveredAt: row.first_discovered_at,
         lastSeenAt: row.last_seen_at,
         lastAnalyzedAt: row.last_analyzed_at,
+        assignedTo: row.assigned_to || "",
         business: {
           id: row.business_id,
           name: row.business_name,
@@ -429,6 +436,7 @@ export async function getLeadDetail(leadId) {
     firstDiscoveredAt: lead.first_discovered_at,
     lastSeenAt: lead.last_seen_at,
     lastAnalyzedAt: lead.last_analyzed_at,
+    assignedTo: lead.assigned_to || lead.assignedTo || "",
     business: {
       id: b.id,
       name: b.name || "Unknown",
@@ -868,4 +876,24 @@ export async function clearHunterDB() {
   writeJSON(ANALYSES_FILE, []);
   writeJSON(ACTIVITIES_FILE, []);
   writeJSON(JOBS_FILE, []);
+}
+
+export async function assignHunterLead(leadId, username) {
+  if (pool) {
+    try {
+      await initPG();
+      await pool.query("UPDATE hunter_leads SET assigned_to = $1 WHERE id = $2", [username, leadId]);
+      return;
+    } catch (err) {
+      console.error("PG assignHunterLead failed, using local JSON fallback:", err);
+    }
+  }
+  
+  const leads = readJSON(LEADS_FILE);
+  const index = leads.findIndex(l => l.id === leadId);
+  if (index !== -1) {
+    leads[index].assigned_to = username;
+    leads[index].assignedTo = username;
+    writeJSON(LEADS_FILE, leads);
+  }
 }

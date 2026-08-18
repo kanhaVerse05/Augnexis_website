@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import fs from "fs/promises";
 import path from "path";
+import { verifyAuth } from "@/lib/auth-helper";
 
 export async function POST(request) {
   try {
-    const authHeader = request.headers.get("authorization");
-    if (authHeader !== "admin-secret-token") {
+    const auth = await verifyAuth(request, "blogs");
+    if (!auth) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

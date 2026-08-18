@@ -2,12 +2,18 @@ import { NextResponse } from "next/server";
 import { getSettings, saveSettings, getJobs, getCategoryStats } from "@/lib/db-hunter";
 import { runLeadHunt } from "@/lib/hunter-engine";
 import { initScheduler } from "@/lib/hunter-scheduler";
+import { verifyAuth } from "@/lib/auth-helper";
 
 // Self-boots background daemon on first request
 initScheduler();
 
-export async function GET() {
+export async function GET(request) {
   try {
+    const auth = await verifyAuth(request, "lead_hunter");
+    if (!auth) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const settings = await getSettings();
     const jobs = await getJobs();
     const categoryStats = await getCategoryStats();
@@ -35,6 +41,11 @@ export async function GET() {
 
 export async function POST(request) {
   try {
+    const auth = await verifyAuth(request, "lead_hunter");
+    if (!auth) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await request.json();
     const { action, settings } = body;
     
